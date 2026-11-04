@@ -3,29 +3,34 @@ import Foundation
 /// The entries of the sidebar: each one a view of the library with its own filter and explanation.
 enum Destination: String, CaseIterable, Identifiable, Hashable {
     case videos, photos, similar, accidental, live, lifeless, hiddenMotion, edited, rotated, jpeg, screenshots, shrinking,
-        drive, favorites
+        drive, cleanup, favorites
 
     /// What the main area shows for a destination
-    enum Page { case grid, groups, shrinking, files }
+    enum Page { case grid, groups, shrinking, files, cleanup }
 
     var id: String { rawValue }
 
-    static let sections = ["Library", "Free up space", "Browse"]
+    static let sections = ["Library", "Free up space", "This Mac", "Browse"]
 
     var section: String {
         switch self {
         case .videos, .photos: "Library"
         case .similar, .accidental, .live, .lifeless, .hiddenMotion, .edited, .rotated, .jpeg, .screenshots, .shrinking, .drive:
             "Free up space"
+        case .cleanup: "This Mac"
         case .favorites: "Browse"
         }
     }
+
+    /// Whether the view lists photos and videos, with their details panel and actions
+    var showsItems: Bool { page != .files && page != .cleanup }
 
     var page: Page {
         switch self {
         case .similar: .groups
         case .shrinking: .shrinking
         case .drive: .files
+        case .cleanup: .cleanup
         default: .grid
         }
     }
@@ -39,6 +44,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .screenshots: "Screenshots"
         case .shrinking: "Shrinking"
         case .drive: "iCloud Drive"
+        case .cleanup: "Clean Up"
         case .favorites: "Favorites"
         case .edited: "Edited"
         case .rotated: "Only Rotated"
@@ -58,6 +64,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .screenshots: "camera.viewfinder"
         case .shrinking: "gearshape.2"
         case .drive: "icloud"
+        case .cleanup: "internaldrive"
         case .favorites: "heart"
         case .edited: "slider.horizontal.3"
         case .rotated: "rotate.right"
@@ -82,6 +89,8 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking:
             "Videos being shrunk, one at a time, and the results. Copies go into Photos with the same date, place, favorite and albums. Once you have checked a copy, delete the originals here: that is what frees the space. A copy refused for its quality waits here too: compare it with the original and save it anyway if it looks fine."
         case .favorites: "Favorite photos and videos."
+        case .cleanup:
+            "Disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again on their own, and apps not opened for a while. Each size is measured on the disk, and measured again after cleaning. Nothing here touches your photos or iCloud."
         case .drive:
             "Files in iCloud Drive and in apps' iCloud folders, from 1 MB, biggest first. Select some, then Move to Trash: they leave iCloud Drive on all your devices. When macOS keeps a file for the app that made it, Finder moves it instead, and macOS asks you once to allow that. Files an app keeps for itself, like WhatsApp's chat backup, are listed so you see what they take, but are deleted from that app. Double-click a file to open it."
         case .edited:
@@ -114,7 +123,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .videos: item.kind == .video
         case .photos: item.kind == .photo
-        case .similar, .shrinking, .drive: false
+        case .similar, .shrinking, .drive, .cleanup: false
         case .screenshots: item.screenshot
         case .favorites: item.favorite
         case .edited: Replacement.keepEdit.applies(to: item)

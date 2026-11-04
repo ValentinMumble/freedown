@@ -63,4 +63,33 @@ struct SavingsTests {
         #expect(comparison.counted == 500)
         #expect(Savings.comparison(entries, Array(readings.prefix(1))) == nil)
     }
+
+    /// Photos and files are gone for good, caches are kept apart
+    @Test func totalsSplitPhotosFilesAndCaches() {
+        let day = Date(timeIntervalSince1970: 1_800_000_000)
+        let entries = [
+            Saving(date: day, kind: .removedMotion, count: 3, bytes: 300),
+            Saving(date: day, kind: .shrunk, count: 1, bytes: 200),
+            Saving(date: day, kind: .deletedFiles, count: 2, bytes: 50),
+            Saving(date: day, kind: .deletedOnMac, count: 4, bytes: 1_000),
+            Saving(date: day, kind: .clearedCaches, count: 1, bytes: 700),
+        ]
+        let totals = Savings.totals(entries)
+        #expect(totals[.photos] == 500)
+        #expect(totals[.files] == 1_050)
+        #expect(totals[.caches] == 700)
+    }
+
+    /// iCloud's free space is set against what Freedown freed in iCloud, not on this Mac's disk
+    @Test func theICloudComparisonLeavesTheMacOut() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let readings = [StorageReading(date: start, free: 0), StorageReading(date: start.addingTimeInterval(7_200), free: 400)]
+        let entries = [
+            Saving(date: start.addingTimeInterval(60), kind: .deleted, count: 1, bytes: 300),
+            Saving(date: start.addingTimeInterval(60), kind: .clearedCaches, count: 1, bytes: 5_000),
+            Saving(date: start.addingTimeInterval(60), kind: .deletedOnMac, count: 1, bytes: 9_000),
+        ]
+        let comparison = try #require(Savings.comparison(entries, readings))
+        #expect(comparison.counted == 300)
+    }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import Observation
 import os
 import Photos
@@ -124,6 +125,58 @@ final class Library {
     func findAccidental() async {
         await analysis.findAccidental(items)
         tallies = LibraryScan.tallies(items, in: listContext)
+    }
+
+    // MARK: This Mac
+
+    /// What can go to free disk space on this Mac (see Cleanup): nil until measured
+    private(set) var cleanupItems: [CleanupItem]?
+    /// Files of 500 MB or more, looked for on request: nil until then
+    private(set) var largeFiles: [CleanupItem]?
+    /// How many items the large-file search looked at, while it runs
+    private(set) var largeFilesProgress: Int?
+
+    func findLargeFiles() async {
+        largeFilesProgress = 0
+        largeFiles = await Task.detached(priority: .utility) {
+            Cleanup.largeFiles { seen in Task { @MainActor in self.largeFilesProgress = seen } }
+        }.value
+        largeFilesProgress = nil
+    }
+
+    func scanCleanup() async {
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let photosTrash = (try? recentlyDeleted?.get())?.size
+        cleanupItems = await Task.detached(priority: .userInitiated) { Cleanup.scan(running: running, photosTrash: photosTrash) }.value
+    }
+
+    /// Cleans one item, then measures it and the Trash again, which gets what goes to it. Returns what was
+    /// freed, or why not.
+    func clean(_ item: CleanupItem) async -> String {
+        let trash = cleanupItems?.first { $0.group == .trash }
+        let (problem, after, trashAfter) = await Task.detached(priority: .userInitiated) {
+            let problem = Cleanup.clean(item)
+            return (problem, Cleanup.measure(item), trash.map(Cleanup.measure))
+        }.value
+        let update = { (current: CleanupItem) -> CleanupItem in
+            if current.id == item.id { return current.measured(after) }
+            if current.id == trash?.id, let trashAfter { return current.measured(trashAfter) }
+            return current
+        }
+        cleanupItems = cleanupItems?.map(update)
+        largeFiles = largeFiles?.map(update)
+        let freed = max(0, item.size - after)
+        // Moving to the Trash frees nothing yet: it counts once the Trash is emptied
+        if freed > 0 {
+            switch item.action {
+            case .emptyTrash: addSaving(.deletedOnMac, item.count, freed)
+            case .emptyFolders, .command: addSaving(item.refills ? .clearedCaches : .deletedOnMac, item.count, freed)
+            case .moveToTrash, .none: break
+            }
+        }
+        if let problem { return freed > 0 ? "Freed \(Format.bytes(freed)), then: \(problem)" : problem }
+        if case .moveToTrash = item.action { return "In the Trash" }
+        return "Freed \(Format.bytes(freed))"
     }
 
     // MARK: iCloud Drive

@@ -38,6 +38,10 @@ struct Sidebar: View {
         // Not worked out until the view is first opened
         if entry == .lifeless && library.analysis.lifeless == nil { return "" }
         if entry == .accidental && library.analysis.accidental == nil { return "" }
+        if entry == .cleanup {
+            guard let items = library.cleanupItems else { return "" }
+            return Format.bytes(items.filter(\.cleanable).reduce(0) { $0 + $1.size })
+        }
         if entry == .drive {
             guard let files = library.driveFiles else { return "" }
             return "\(files.count.formatted()) · \(Format.bytes(files.reduce(0) { $0 + $1.size }))"
@@ -90,6 +94,23 @@ struct StorageView: View {
         return text + ". They no longer count toward your iCloud storage (Apple says so), so emptying it frees no iCloud space: it only removes them for good."
     }
 
+    /// Photos, files and caches, in that order
+    private var savedTotals: [(Saving.Kind.Category, Int64)] {
+        let totals = Savings.totals(library.savings)
+        return Saving.Kind.Category.allCases.map { ($0, totals[$0] ?? 0) }
+    }
+
+    private func savedRow(_ category: Saving.Kind.Category, _ total: Int64) -> some View {
+        // Caches come back, so they are not shown as won
+        let caches = category == .caches
+        return HStack {
+            Text(caches ? "Caches, they fill again" : category.label)
+            Spacer()
+            Text(Format.bytes(total)).foregroundStyle(caches ? Color.secondary : Color.green)
+        }
+        .padding(.leading, 14)
+    }
+
     /// The saved total by kind of change, since the first one
     private var savedDetail: String {
         let byKind = Dictionary(grouping: library.savings, by: \.kind)
@@ -100,7 +121,7 @@ struct StorageView: View {
         }
         let since = library.savings.first.map { "Since \($0.date.formatted(date: .abbreviated, time: .omitted))\n" } ?? ""
         return since + lines.joined(separator: "\n")
-            + "\nCounted when the change is made. iCloud frees the space right away: Apple says items in Recently Deleted don't count toward your iCloud storage."
+            + "\nPhotos and iCloud Drive files free iCloud space, counted when the change is made: Apple says items in Recently Deleted don't count toward your iCloud storage. Files deleted from this Mac and caches free its disk. Caches are counted apart, since apps fill them again as they work."
     }
 
     var body: some View {
@@ -148,11 +169,15 @@ struct StorageView: View {
                 Button {
                     showSavings = true
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle").frame(width: 8)
-                        Text("Saved with Freedown")
-                        Spacer()
-                        Text(Format.bytes(library.savings.reduce(0) { $0 + $1.bytes })).foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle").frame(width: 8)
+                            Text("Saved with Freedown")
+                            Spacer()
+                        }
+                        ForEach(savedTotals.filter { $0.1 != 0 }, id: \.0) { category, total in
+                            savedRow(category, total)
+                        }
                     }
                     .contentShape(Rectangle())
                 }

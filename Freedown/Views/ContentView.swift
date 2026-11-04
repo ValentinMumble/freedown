@@ -82,7 +82,7 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 300, ideal: 800)
         }
         // Files have no details panel: the table shows all there is
-        .inspector(isPresented: Binding(get: { showInspector && current.page != .files }, set: { showInspector = $0 })) {
+        .inspector(isPresented: Binding(get: { showInspector && current.showsItems }, set: { showInspector = $0 })) {
             Inspector(items: selected, actions: actions)
                 .inspectorColumnWidth(min: 260, ideal: 420, max: 600)
         }
@@ -198,6 +198,7 @@ struct ContentView: View {
                 case .groups: GroupsView(selection: $selection, actions: actions)
                 case .shrinking: ShrinkView(selection: $selection, actions: actions)
                 case .files: FilesView()
+                case .cleanup: CleanupView()
                 case .grid where current == .lifeless && library.analysis.lifeless == nil:
                     ProgressView(value: library.analysis.subjectsProgress) {
                         Text("Looking for people and pets in each Live Photo…")
@@ -315,7 +316,7 @@ struct ContentView: View {
                     .help("Select every item shown (Cmd-A)")
             }
         }
-        if current.page != .files {
+        if current.showsItems {
             itemActions
         }
     }

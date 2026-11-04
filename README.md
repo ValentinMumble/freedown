@@ -37,6 +37,7 @@ Freedown counts every file iCloud stores for an item, so the sizes it shows add 
 | JPEG Photos | **Convert to HEIC**: lightly compressed JPEGs are saved again as HEIC, and the copy replaces the JPEG only when it is smaller and looks the same |
 | Screenshots | rarely worth keeping for long |
 | iCloud Drive | files in iCloud Drive and in apps' iCloud folders from 1 MB, biggest first, to move to the Trash or show in Finder |
+| Clean Up | disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days |
 | Shrinking | re-encodes the videos you pick in Videos to a smaller file, keeping a copy only when it looks the same |
 | Favorites | what the name says |
 
@@ -47,7 +48,9 @@ their date or open them in Photos (double-click does that too). The keyboard wor
 through the grid, Cmd-A selects everything shown, Space plays or pauses the video or Live Photo in the panel,
 Return opens the item in Photos, and M marks Live Photos for Remove Motion.
 
-Clicking "Saved with Freedown" in the sidebar shows what each day saved, by kind of change, next to iCloud's
+The saved total is split three ways: photos, files (from iCloud Drive, or the Trash emptied in Clean Up) and
+caches, kept apart because apps fill them again. Moving something to the Trash counts once the Trash is
+emptied. Clicking "Saved with Freedown" in the sidebar shows what each day saved, by kind of change, next to iCloud's
 free space read along the way. When shrinking or a replacement ends while you are in another app, a
 notification says how it went. The shrink queue survives quitting the app, and so do the hashes and Vision
 answers, so only new and edited photos are analysed again. Deleted items stay in Recently Deleted for
@@ -149,6 +152,16 @@ libvmaf. Everything else works without it.
   macOS asks once whether it may control Finder. Apple says
   files in iCloud Drive's Recently Deleted no longer count toward your storage
   ([Delete files in iCloud Drive](https://support.apple.com/guide/icloud/mm3b7fcd0c10/icloud)).
+- **Clean Up** measures what the disk really holds (allocated blocks, or what `docker system df` says it can
+  reclaim), and measures again after cleaning, so the freed figure is real. Caches are emptied but their
+  folders kept, for tools and apps to fill again; Docker and Homebrew clean with their own commands; a
+  browser's cache waits until it is quit. An app counts as unused when neither Spotlight nor a write to its own
+  data (settings, saved windows, its folders) shows use for 60 days, and apps with a program running in the
+  background (Karabiner, extensions) are left out. Apps go to the Trash, through Finder when an administrator
+  installed them. Docker's unused volumes are named before they go, since their data is deleted for good. A bar on top splits what can be freed by group, and every line has a bar on the same scale. On request it
+  also looks through the home folder for files and apps of 500 MB or more (about a minute), counting what
+  the disk holds rather than the length a file claims (disk images are mostly empty), and leaving out what
+  other lines cover, node_modules, git data and other apps' containers.
 - **Open in Photos** uses a `photos-navigation://asset?uuid=` link. AppleScript's `spotlight` command
   crashes Photos on macOS 27.
 - The app is not sandboxed (it reads that cache and runs `brctl` and ffmpeg), with the hardened runtime and
@@ -175,6 +188,7 @@ libvmaf. Everything else works without it.
 | `Freedown/Model/Shrinker.swift`, `ShrinkPipeline.swift`, `ShrinkRecords.swift`, `FFmpeg.swift` | shrinking videos |
 | `Freedown/Model/ICloudStorage.swift`, `RecentlyDeleted.swift` | iCloud storage by app, Recently Deleted |
 | `Freedown/Model/ICloudDrive.swift` | the biggest files in iCloud Drive |
+| `Freedown/Model/Cleanup.swift`, `Finder.swift` | disk space on this Mac that can go, and asking Finder to trash |
 | `Freedown/Model/Savings.swift` | the space Freedown freed and iCloud's free space, kept across launches |
 | `Freedown/Model/Settings.swift` | the settings' names and the app's folders |
 | `Freedown/Model/DateChange.swift` | date changes and reading dates from file names |

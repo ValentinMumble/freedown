@@ -81,7 +81,7 @@ enum ICloudDrive {
             } catch let refusal as CocoaError where refusal.code == .fileWriteNoPermission {
                 // macOS keeps some files for the apps that made or opened them (the com.apple.macl mark, common on
                 // files that came from elsewhere): Finder may still move them, as dragging them to the Trash would
-                if let problem = finderTrash(file.url) {
+                if let problem = Finder.trash(file.url) {
                     failed.append("\(file.name) (\(problem))")
                 } else {
                     trashed.append(file)
@@ -91,34 +91,6 @@ enum ICloudDrive {
             }
         }
         return (trashed, failed)
-    }
-
-    /// Asks Finder to move a file to the Trash. The first time, macOS asks whether Freedown may control Finder.
-    /// Returns why it did not, or nil once the file is gone.
-    private static func finderTrash(_ file: URL) -> String? {
-        let process = Process()
-        process.executableURL = URL(filePath: "/usr/bin/osascript")
-        // The path goes in as an argument, so no character in it can break the script
-        process.arguments = [
-            "-e", "on run argv", "-e", "tell application \"Finder\" to delete (POSIX file (item 1 of argv) as alias)", "-e", "end run",
-            file.path,
-        ]
-        let errors = Pipe()
-        process.standardError = errors
-        process.standardOutput = FileHandle.nullDevice
-        do {
-            try process.run()
-        } catch {
-            return error.localizedDescription
-        }
-        let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        process.waitUntilExit()
-        if process.terminationStatus == 0 && !FileManager.default.fileExists(atPath: file.path) { return nil }
-        // -1743: the user said no when macOS asked
-        if message.contains("-1743") {
-            return "Freedown may not control Finder: allow it in System Settings › Privacy & Security › Automation"
-        }
-        return message.isEmpty ? "Finder could not move it to the Trash" : message.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// The folder's name as Finder shows it ("WhatsApp" for `57T9237FN3~net~whatsapp~WhatsApp`), without the

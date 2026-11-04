@@ -14,12 +14,12 @@ struct SavingsSheet: View {
         let days = Savings.daily(savings)
         let kinds = Saving.Kind.allCases.filter { kind in days.contains { $0.kind == kind } }
         VStack(alignment: .leading, spacing: 14) {
-            Text("Saved with Freedown: \(Format.bytes(savings.reduce(0) { $0 + $1.bytes }))")
-                .font(.title2.weight(.semibold))
+            Text("Saved with Freedown").font(.title2.weight(.semibold))
             if let first = savings.first {
                 Text("Since \(first.date.formatted(date: .abbreviated, time: .omitted)), counted when each change is made.")
                     .foregroundStyle(.secondary)
             }
+            totals(savings)
 
             Text("Saved per day").font(.headline)
             Chart {
@@ -53,6 +53,30 @@ struct SavingsSheet: View {
         }
         .padding(20)
         .frame(width: 620)
+    }
+
+    /// Photos and files are gone for good; caches are apart, apps fill them again
+    private func totals(_ savings: [Saving]) -> some View {
+        let totals = Savings.totals(savings)
+        return HStack(alignment: .top, spacing: 28) {
+            ForEach(Saving.Kind.Category.allCases, id: \.self) { category in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(category.label).foregroundStyle(.secondary)
+                    Text(Format.bytes(totals[category] ?? 0)).font(.title3.weight(.semibold)).monospacedDigit()
+                    Text(Self.place(category))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private static func place(_ category: Saving.Kind.Category) -> String {
+        switch category {
+        case .photos: "In iCloud, for good"
+        case .files: "In iCloud Drive and on this Mac, for good"
+        case .caches: "On this Mac, they fill again"
+        }
     }
 
     private var gigabytes: some AxisContent {
@@ -122,7 +146,7 @@ struct SavingsSheet: View {
             let change =
                 comparison.freed >= 0 ? "went up \(Format.bytes(comparison.freed))" : "went down \(Format.bytes(-comparison.freed))"
             Text(
-                "Since \(Format.date(comparison.since)), iCloud's free space \(change), and Freedown counted \(Format.bytes(comparison.counted)). The free space also moves with everything else in iCloud: backups, other apps, new photos."
+                "Since \(Format.date(comparison.since)), iCloud's free space \(change), and Freedown freed \(Format.bytes(comparison.counted)) in iCloud. The free space also moves with everything else in iCloud: backups, other apps, new photos."
             )
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -134,23 +158,6 @@ struct SavingsSheet: View {
 }
 
 extension Saving.Kind {
-    /// One fixed color per kind, checked for color blindness side by side, a step darker or lighter in dark mode
-    var color: Color {
-        let (light, dark): (UInt32, UInt32) =
-            switch self {
-            case .deleted: (0x2a78d6, 0x3987e5)
-            case .removedMotion: (0xeb6834, 0xd95926)
-            case .keptEdit: (0x1baf7a, 0x199e70)
-            case .shrunk: (0xeda100, 0xc98500)
-            case .convertedToHEIC: (0xe87ba4, 0xd55181)
-            case .deletedFiles: (0x008300, 0x008300)
-            }
-        return Color(
-            nsColor: NSColor(name: nil) { appearance in
-                let hex = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
-                return NSColor(
-                    srgbRed: CGFloat(hex >> 16 & 0xff) / 255, green: CGFloat(hex >> 8 & 0xff) / 255, blue: CGFloat(hex & 0xff) / 255,
-                    alpha: 1)
-            })
-    }
+    /// One fixed color per kind, in the palette's order
+    var color: Color { Palette.color(Saving.Kind.allCases.firstIndex(of: self)!) }
 }
