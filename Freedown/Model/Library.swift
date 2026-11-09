@@ -122,6 +122,10 @@ final class Library {
         tallies = LibraryScan.tallies(items, in: listContext)
     }
 
+    func findHalfFrames() async {
+        await analysis.findHalfFrames(items)
+    }
+
     func findAccidental() async {
         await analysis.findAccidental(items)
         tallies = LibraryScan.tallies(items, in: listContext)

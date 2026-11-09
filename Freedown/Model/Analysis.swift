@@ -18,10 +18,15 @@ final class Analysis {
     /// Photos that look taken by mistake (see Accidental): nil until worked out
     private(set) var accidental: Set<String>?
     private(set) var accidentalProgress = 0.0
+    /// Half-frame scans, by item id, with the strip between their frames (see HalfFrame): nil until worked out
+    private(set) var halfFrames: [String: ClosedRange<Double>]?
+    private(set) var halfFrameProgress = 0.0
 
     private struct Cache: Codable {
         var fingerprints: [String: Similar.Fingerprint] = [:]
         var subjects: [String: Bool] = [:]
+        /// The strip's start and end, or nothing when the photo has none
+        var gaps: [String: [Double]] = [:]
     }
 
     private static let cacheFile = Settings.supportFolder.appending(path: "analysis.json")
@@ -35,6 +40,7 @@ final class Analysis {
         let keys = Set(items.map(\.analysisKey))
         cache.fingerprints = cache.fingerprints.filter { keys.contains($0.key) }
         cache.subjects = cache.subjects.filter { keys.contains($0.key) }
+        cache.gaps = cache.gaps.filter { keys.contains($0.key) }
         try? FileManager.default.createDirectory(at: Settings.supportFolder, withIntermediateDirectories: true)
         try? JSONEncoder().encode(cache).write(to: Self.cacheFile)
     }
@@ -44,6 +50,37 @@ final class Analysis {
         if similarGroups != nil { await computeSimilar(items) }
         if lifeless != nil { await computeSubjects(items) }
         if accidental != nil { await computeAccidental(items) }
+        if halfFrames != nil { await computeHalfFrames(items) }
+    }
+
+    func findHalfFrames(_ items: [Item]) async {
+        guard halfFrames == nil else { return }
+        await computeHalfFrames(items)
+    }
+
+    /// Looks once at each photo shaped like a half-frame scan
+    private func computeHalfFrames(_ items: [Item]) async {
+        let candidates = items.filter(HalfFrame.isCandidate)
+        let known = cache.gaps
+        let gaps = await Task.detached(priority: .userInitiated) {
+            var gaps = known
+            for (index, item) in candidates.enumerated() where gaps[item.analysisKey] == nil {
+                gaps[item.analysisKey] = HalfFrame.gap(item.asset).map { [$0.lowerBound, $0.upperBound] } ?? []
+                if index % 10 == 0 {
+                    let fraction = Double(index) / Double(candidates.count)
+                    Task { @MainActor in self.halfFrameProgress = fraction }
+                }
+            }
+            return gaps
+        }.value
+        cache.gaps.merge(gaps) { _, new in new }
+        saveCache(items)
+        var found: [String: ClosedRange<Double>] = [:]
+        for item in candidates {
+            if let gap = gaps[item.analysisKey], gap.count == 2 { found[item.id] = gap[0]...gap[1] }
+        }
+        halfFrames = found
+        log.notice("Half frames: \(found.count) of \(candidates.count) scan-shaped photos")
     }
 
     func findSimilar(_ items: [Item]) async {

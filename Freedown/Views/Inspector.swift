@@ -36,6 +36,8 @@ struct Actions {
     let delete: ([Item]) -> Void
     let shrink: ([Item]) -> Void
     let replace: ([Item], Replacement) -> Void
+    /// Dropped onto another photo: they take its moment, just after it
+    let placeAfter: ([Item], Item) -> Void
 }
 
 /// The right-click menu of an item, acting on `items` (the selection when the item is part of it)

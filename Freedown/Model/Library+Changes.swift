@@ -108,4 +108,52 @@ extension Library {
         await reload()
         return outcome
     }
+
+    struct SplitOutcome {
+        var split = 0
+        var failed: [String] = []
+        var cancelled = false
+    }
+
+    /// Splits half-frame scans into their two photos (see HalfFrame), a batch per confirmation. `progress` gets a
+    /// message and how many scans are done.
+    func splitHalfFrames(_ scans: [HalfFrameScan], progress: @escaping (String, Int) -> Void) async -> SplitOutcome {
+        var outcome = SplitOutcome()
+        let folder = FileManager.default.temporaryDirectory.appending(path: "freedown-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var done = 0
+        for start in stride(from: 0, to: scans.count, by: Self.replaceBatch) {
+            var splits: [(scan: PHAsset, halves: [URL])] = []
+            for scan in scans[start..<min(start + Self.replaceBatch, scans.count)] {
+                progress("Cutting each scan in two…", done)
+                do {
+                    let halves = try await Task.detached {
+                        let entry = try await Replacer.exportCurrent(scan.item, to: folder)
+                        return try HalfFrame.split(entry.file, gap: scan.gap, turns: scan.turns, to: entry.file.deletingLastPathComponent())
+                    }.value
+                    splits.append((scan.item.asset, halves))
+                } catch {
+                    log.error("Could not split \(scan.item.filename, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    outcome.failed.append("\(scan.item.filename) (\(error.localizedDescription))")
+                }
+                done += 1
+            }
+            guard !splits.isEmpty else { continue }
+            progress("Waiting for you to confirm…", done)
+            do {
+                try await Task.detached { [splits] in try await HalfFrame.replace(splits) }.value
+                outcome.split += splits.count
+            } catch let failure as NSError where failure.domain == PHPhotosErrorDomain
+                && failure.code == PHPhotosError.userCancelled.rawValue
+            {
+                outcome.cancelled = true
+                break
+            } catch {
+                self.error = error.localizedDescription
+                break
+            }
+        }
+        await reload()
+        return outcome
+    }
 }

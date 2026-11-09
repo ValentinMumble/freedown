@@ -13,6 +13,8 @@ struct GridView: View {
     @State private var anchor: Int?
     /// Cards per row, for the up and down arrows
     @State private var columns = 1
+    /// The card a drag hovers over
+    @State private var dropTarget: String?
 
     /// A right-click acts on the whole selection when the item is part of it, like in Finder
     private func targets(_ item: Item) -> [Item] {
@@ -43,6 +45,31 @@ struct GridView: View {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             Card(item: item, selected: selection.contains(item.id), mark: mark(item), pixels: pixels)
                                 .onTapGesture { click(index) }
+                                // Drop photos on another one to give them its date and time, just after it
+                                .draggable(item.id) { Thumbnail(asset: item.asset, pixels: 160).frame(width: 80, height: 80) }
+                                .dropDestination(for: String.self) { ids, _ in
+                                    drop(ids, on: item)
+                                } isTargeted: { over in
+                                    dropTarget = over ? item.id : (dropTarget == item.id ? nil : dropTarget)
+                                }
+                                // macOS keeps the cursor during a drag, so the card says where the drop goes:
+                                // a bar on its right edge, where the photo lands, and the time it will take
+                                .overlay(alignment: .trailing) {
+                                    if dropTarget == item.id {
+                                        ZStack(alignment: .topTrailing) {
+                                            RoundedRectangle(cornerRadius: 6).strokeBorder(Color.accentColor.opacity(0.5), lineWidth: 2)
+                                            Capsule().fill(Color.accentColor).frame(width: 5).padding(.vertical, 2).offset(x: 4)
+                                            Label("After \(item.date.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.turn.down.right")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 3)
+                                                .background(Color.accentColor, in: Capsule())
+                                                .padding(6)
+                                        }
+                                        .allowsHitTesting(false)
+                                    }
+                                }
                                 .contextMenu { ItemMenu(items: targets(item), actions: actions) }
                         }
                     }
@@ -88,6 +115,16 @@ struct GridView: View {
         selection = [items[next].id]
         anchor = next
         proxy.scrollTo(items[next].id)
+    }
+
+    /// A dragged photo brings the rest of the selection when it is part of it, like in Finder
+    private func drop(_ ids: [String], on target: Item) -> Bool {
+        dropTarget = nil
+        let dragged = Set(ids.contains { selection.contains($0) } ? Array(selection) + ids : ids)
+        let moving = items.filter { dragged.contains($0.id) && $0.id != target.id }
+        guard !moving.isEmpty else { return false }
+        actions.placeAfter(moving, target)
+        return true
     }
 
     /// A separate double-click gesture would hold every click until the double-click time ran out, and by then

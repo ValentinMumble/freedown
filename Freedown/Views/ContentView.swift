@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var search = ""
     @State private var showInspector = true
     @State private var dateRequest: DateRequest?
+    /// Photos dropped onto another one, waiting for the date change to be confirmed
+    @State private var placement: Placement?
     @State private var shrinkRequest: ShrinkRequest?
     @State private var replaceRequest: ReplaceRequest?
     @State private var keyMonitor: Any?
@@ -65,7 +67,8 @@ struct ContentView: View {
                 }
             },
             shrink: { items in shrinkRequest = ShrinkRequest(items: items) },
-            replace: { items, kind in replaceRequest = ReplaceRequest(items: items, kind: kind) }
+            replace: { items, kind in replaceRequest = ReplaceRequest(items: items, kind: kind) },
+            placeAfter: { items, target in placement = Placement(items: items, target: target) }
         )
     }
 
@@ -89,6 +92,18 @@ struct ContentView: View {
         .toolbar { toolbar }
         .searchable(text: $search, placement: .toolbar, prompt: "File name")
         .sheet(item: $dateRequest) { request in DateSheet(items: request.items) }
+        .confirmationDialog(
+            placement.map { "Move \(Format.count($0.items.count, "photo")) to \(Format.date($0.target.date))?" } ?? "",
+            isPresented: Binding(get: { placement != nil }, set: { if !$0 { placement = nil } }), presenting: placement
+        ) { placement in
+            Button("Change Date") {
+                Task { await library.setDates(placement.changes) }
+            }
+        } message: { placement in
+            Text(
+                "\(placement.items.count == 1 ? "It goes" : "They go, a second apart in their current order,") right after \(placement.target.filename). Photos keeps the original date: Image › Adjust Date and Time can put it back."
+            )
+        }
         .sheet(item: $replaceRequest) { request in ReplaceSheet(request: request) }
         .sheet(item: $shrinkRequest) { request in
             ShrinkSheet(items: request.items) { items, preset in
@@ -199,6 +214,7 @@ struct ContentView: View {
                 case .shrinking: ShrinkView(selection: $selection, actions: actions)
                 case .files: FilesView()
                 case .cleanup: CleanupView()
+                case .halfFrame: HalfFrameView()
                 case .grid where current == .lifeless && library.analysis.lifeless == nil:
                     ProgressView(value: library.analysis.subjectsProgress) {
                         Text("Looking for people and pets in each Live Photo…")
@@ -350,5 +366,16 @@ extension View {
         } else {
             buttonStyle(.bordered).disabled(true)
         }
+    }
+}
+
+/// Photos dropped onto another one: they take its date and time, one second after it and after each other
+struct Placement: Identifiable {
+    let id = UUID()
+    let items: [Item]
+    let target: Item
+
+    var changes: [(Item, Date)] {
+        items.sorted { $0.date < $1.date }.enumerated().map { index, item in (item, target.date.addingTimeInterval(Double(index + 1))) }
     }
 }

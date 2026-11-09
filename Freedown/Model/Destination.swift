@@ -3,14 +3,14 @@ import Foundation
 /// The entries of the sidebar: each one a view of the library with its own filter and explanation.
 enum Destination: String, CaseIterable, Identifiable, Hashable {
     case videos, photos, similar, accidental, live, lifeless, hiddenMotion, edited, rotated, jpeg, screenshots, shrinking,
-        drive, cleanup, favorites
+        drive, cleanup, halfFrame, favorites
 
     /// What the main area shows for a destination
-    enum Page { case grid, groups, shrinking, files, cleanup }
+    enum Page { case grid, groups, shrinking, files, cleanup, halfFrame }
 
     var id: String { rawValue }
 
-    static let sections = ["Library", "Free up space", "This Mac", "Browse"]
+    static let sections = ["Library", "Free up space", "This Mac", "Film", "Browse"]
 
     var section: String {
         switch self {
@@ -18,12 +18,13 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .similar, .accidental, .live, .lifeless, .hiddenMotion, .edited, .rotated, .jpeg, .screenshots, .shrinking, .drive:
             "Free up space"
         case .cleanup: "This Mac"
+        case .halfFrame: "Film"
         case .favorites: "Browse"
         }
     }
 
     /// Whether the view lists photos and videos, with their details panel and actions
-    var showsItems: Bool { page != .files && page != .cleanup }
+    var showsItems: Bool { page == .grid || page == .groups || page == .shrinking }
 
     var page: Page {
         switch self {
@@ -31,6 +32,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking: .shrinking
         case .drive: .files
         case .cleanup: .cleanup
+        case .halfFrame: .halfFrame
         default: .grid
         }
     }
@@ -45,6 +47,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking: "Shrinking"
         case .drive: "iCloud Drive"
         case .cleanup: "Clean Up"
+        case .halfFrame: "Half-Frame Scans"
         case .favorites: "Favorites"
         case .edited: "Edited"
         case .rotated: "Only Rotated"
@@ -65,6 +68,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking: "gearshape.2"
         case .drive: "icloud"
         case .cleanup: "internaldrive"
+        case .halfFrame: "rectangle.split.2x1"
         case .favorites: "heart"
         case .edited: "slider.horizontal.3"
         case .rotated: "rotate.right"
@@ -89,6 +93,8 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking:
             "Videos being shrunk, one at a time, and the results. Copies go into Photos with the same date, place, favorite and albums. Once you have checked a copy, delete the originals here: that is what frees the space. A copy refused for its quality waits here too: compare it with the original and save it anyway if it looks fine."
         case .favorites: "Favorite photos and videos."
+        case .halfFrame:
+            "Scans of half-frame film: the lab puts two shots side by side on one picture, with a dark strip between them. Check each cut, turn the halves you shot holding the camera sideways, then Split: each scan becomes two photos with its date, place, favorite and albums, and the scan goes to Recently Deleted."
         case .cleanup:
             "Disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again on their own, and apps not opened for a while. Each size is measured on the disk, and measured again after cleaning. Nothing here touches your photos or iCloud."
         case .drive:
@@ -123,7 +129,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .videos: item.kind == .video
         case .photos: item.kind == .photo
-        case .similar, .shrinking, .drive, .cleanup: false
+        case .similar, .shrinking, .drive, .cleanup, .halfFrame: false
         case .screenshots: item.screenshot
         case .favorites: item.favorite
         case .edited: Replacement.keepEdit.applies(to: item)

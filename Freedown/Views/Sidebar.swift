@@ -38,6 +38,9 @@ struct Sidebar: View {
         // Not worked out until the view is first opened
         if entry == .lifeless && library.analysis.lifeless == nil { return "" }
         if entry == .accidental && library.analysis.accidental == nil { return "" }
+        if entry == .halfFrame {
+            return library.analysis.halfFrames.map { $0.count.formatted() } ?? ""
+        }
         if entry == .cleanup {
             guard let items = library.cleanupItems else { return "" }
             return Format.bytes(items.filter(\.cleanable).reduce(0) { $0 + $1.size })

@@ -108,7 +108,7 @@ enum Stills {
         return windows == 0 ? 0 : total / Double(windows) * 100
     }
 
-    private static func grey(_ image: CGImage, _ width: Int, _ height: Int) -> [UInt8] {
+    static func grey(_ image: CGImage, _ width: Int, _ height: Int) -> [UInt8] {
         var pixels = [UInt8](repeating: 0, count: width * height)
         pixels.withUnsafeMutableBytes { buffer in
             let context = CGContext(

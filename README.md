@@ -38,6 +38,7 @@ Freedown counts every file iCloud stores for an item, so the sizes it shows add 
 | Screenshots | rarely worth keeping for long |
 | iCloud Drive | files in iCloud Drive and in apps' iCloud folders from 1 MB, biggest first, to move to the Trash or show in Finder |
 | Clean Up | disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days |
+| Half-Frame Scans | lab scans of half-frame film, two shots per picture: check the cut, turn each half, and split them into two photos |
 | Shrinking | re-encodes the videos you pick in Videos to a smaller file, keeping a copy only when it looks the same |
 | Favorites | what the name says |
 
@@ -58,7 +59,7 @@ answers, so only new and edited photos are analysed again. Deleted items stay in
 [Manage your iCloud storage](https://support.apple.com/108922), and on the library this was built on the free
 space rose as soon as items were deleted. So emptying Recently Deleted frees no iCloud space.
 
-Changing dates: move a set so the earliest gets a date and the others keep their spacing, set an exact
+Drag photos onto another one to give them its date and time, a second after it. Changing dates: move a set so the earliest gets a date and the others keep their spacing, set an exact
 date, shift by an amount, or read the date from the file name (`%Y%m%d_%H%M%S` reads
 `IMG_20240714_183000`).
 
@@ -162,6 +163,10 @@ libvmaf. Everything else works without it.
   also looks through the home folder for files and apps of 500 MB or more (about a minute), counting what
   the disk holds rather than the length a file claims (disk images are mostly empty), and leaving out what
   other lines cover, node_modules, git data and other apps' containers.
+- **Half-Frame Scans** finds the dark strip of unexposed film between the two shots: columns near the middle
+  that are near black while the shots on both sides are clearly brighter, so a night shot is not taken for a
+  scan. Each half is cut out at full size and saved as HEIC with the scan's metadata, its turn written as an
+  orientation rather than encoded again.
 - **Open in Photos** uses a `photos-navigation://asset?uuid=` link. AppleScript's `spotlight` command
   crashes Photos on macOS 27.
 - The app is not sandboxed (it reads that cache and runs `brctl` and ffmpeg), with the hardened runtime and
@@ -188,6 +193,7 @@ libvmaf. Everything else works without it.
 | `Freedown/Model/Shrinker.swift`, `ShrinkPipeline.swift`, `ShrinkRecords.swift`, `FFmpeg.swift` | shrinking videos |
 | `Freedown/Model/ICloudStorage.swift`, `RecentlyDeleted.swift` | iCloud storage by app, Recently Deleted |
 | `Freedown/Model/ICloudDrive.swift` | the biggest files in iCloud Drive |
+| `Freedown/Model/HalfFrame.swift` | finding and splitting half-frame scans |
 | `Freedown/Model/Cleanup.swift`, `Finder.swift` | disk space on this Mac that can go, and asking Finder to trash |
 | `Freedown/Model/Savings.swift` | the space Freedown freed and iCloud's free space, kept across launches |
 | `Freedown/Model/Settings.swift` | the settings' names and the app's folders |
