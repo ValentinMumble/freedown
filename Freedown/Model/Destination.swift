@@ -2,15 +2,15 @@ import Foundation
 
 /// The entries of the sidebar: each one a view of the library with its own filter and explanation.
 enum Destination: String, CaseIterable, Identifiable, Hashable {
-    case videos, photos, similar, accidental, live, lifeless, hiddenMotion, edited, rotated, jpeg, screenshots, shrinking,
-        drive, cleanup, halfFrame, favorites
+    case cleanup, videos, photos, similar, accidental, live, lifeless, hiddenMotion, edited, rotated, jpeg, screenshots,
+        shrinking, drive, halfFrame, favorites
 
     /// What the main area shows for a destination
     enum Page { case grid, groups, shrinking, files, cleanup, halfFrame }
 
     var id: String { rawValue }
 
-    static let sections = ["Library", "Free up space", "This Mac", "Film", "Browse"]
+    static let sections = ["This Mac", "Library", "Free up space", "Film", "Browse"]
 
     var section: String {
         switch self {

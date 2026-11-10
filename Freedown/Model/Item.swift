@@ -87,8 +87,9 @@ struct Item: Identifiable, Hashable {
     }
 }
 
-/// The files behind an asset. Reading them costs a database query per asset, so the library caches them.
-struct Resources {
+/// The files behind an asset. Reading them costs a database query per asset, so the library keeps them, across
+/// launches too.
+struct Resources: Codable {
     let filename: String
     let size: Int64
     let originalSize: Int64

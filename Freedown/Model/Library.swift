@@ -46,7 +46,7 @@ final class Library {
     private(set) var driveFiles: [DriveFile]?
     var error: String?
 
-    @ObservationIgnored private var resources: [String: CachedResources] = [:]
+    @ObservationIgnored private var resources = CachedResources.load()
     @ObservationIgnored private var observer: ChangeObserver?
     @ObservationIgnored private var pendingReload: Task<Void, Never>?
 
@@ -81,12 +81,16 @@ final class Library {
         let cached = resources
         let refused = Set(heicRefusals.keys)
         let firstLoad = items.isEmpty
-        let (loaded, nextResources) = await Task.detached(priority: .userInitiated) {
+        let (loaded, nextResources, read) = await Task.detached(priority: .userInitiated) {
             LibraryScan.fetch(cached: cached, heicRefused: refused) { done, total in
                 guard firstLoad else { return }
                 Task { @MainActor in self.state = .loading(done: done, total: total) }
             }
         }.value
+        // Written only when Photos was asked about something, or items went away
+        if read > 0 || nextResources.count != resources.count {
+            Task.detached(priority: .utility) { CachedResources.save(nextResources) }
+        }
         resources = nextResources
         items = loaded
         itemsById = Dictionary(uniqueKeysWithValues: loaded.map { ($0.id, $0) })

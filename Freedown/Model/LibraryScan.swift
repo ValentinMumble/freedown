@@ -2,29 +2,33 @@ import Photos
 
 /// Reading the library: every item with its files, the exact copies, and the counts the sidebar shows.
 enum LibraryScan {
-    /// `heicRefused`: the photos a HEIC conversion refused before
+    /// `heicRefused`: the photos a HEIC conversion refused before. Also returns how many items Photos was asked
+    /// about, those not cached or changed since.
     nonisolated static func fetch(
         cached: [String: CachedResources], heicRefused: Set<String>, progress: @escaping (Int, Int) -> Void
-    ) -> ([Item], [String: CachedResources]) {
+    ) -> ([Item], [String: CachedResources], read: Int) {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let assets = PHAsset.fetchAssets(with: options)
         var items: [Item] = []
         var nextResources: [String: CachedResources] = [:]
+        var read = 0
         items.reserveCapacity(assets.count)
         assets.enumerateObjects { asset, index, _ in
             let id = asset.localIdentifier
+            let modified = asset.modificationDate?.timeIntervalSinceReferenceDate
             let resources: Resources
-            if let entry = cached[id], entry.modified == asset.modificationDate {
+            if let entry = cached[id], entry.modified == modified {
                 resources = entry.resources
             } else {
                 resources = Resources(asset: asset)
+                read += 1
             }
-            nextResources[id] = CachedResources(modified: asset.modificationDate, resources: resources)
+            nextResources[id] = CachedResources(modified: modified, resources: resources)
             items.append(Item(asset: asset, resources: resources, heicRefused: heicRefused.contains(id)))
             if index % 250 == 0 { progress(index, assets.count) }
         }
-        return (items, nextResources)
+        return (items, nextResources, read)
     }
 
     /// Copies of the same item, newest first. The copy to keep is a favorite, then an edited one, then the one
@@ -59,9 +63,21 @@ enum LibraryScan {
     }
 }
 
-struct CachedResources {
-    let modified: Date?
+/// An asset's files as of its last change, kept on disk so a launch only asks Photos about what changed
+struct CachedResources: Codable {
+    /// Seconds since 2001, kept as a number: a date written as text loses the fraction and would never match again
+    let modified: Double?
     let resources: Resources
+
+    private static let file = "resources.json"
+
+    static func load() -> [String: CachedResources] {
+        Settings.read([String: CachedResources].self, from: file) ?? [:]
+    }
+
+    static func save(_ resources: [String: CachedResources]) {
+        Settings.write(resources, to: file, compact: true)
+    }
 }
 
 /// Tells the library when Photos changes, whoever made the change.

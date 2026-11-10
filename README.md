@@ -37,7 +37,7 @@ Freedown counts every file iCloud stores for an item, so the sizes it shows add 
 | JPEG Photos | **Convert to HEIC**: lightly compressed JPEGs are saved again as HEIC, and the copy replaces the JPEG only when it is smaller and looks the same |
 | Screenshots | rarely worth keeping for long |
 | iCloud Drive | files in iCloud Drive and in apps' iCloud folders from 1 MB, biggest first, to move to the Trash or show in Finder |
-| Clean Up | disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days |
+| Clean Up | the page it opens on: disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days |
 | Half-Frame Scans | lab scans of half-frame film, two shots per picture: check the cut, turn each half, and split them into two photos |
 | Shrinking | re-encodes the videos you pick in Videos to a smaller file, keeping a copy only when it looks the same |
 | Favorites | what the name says |
@@ -87,7 +87,7 @@ libvmaf. Everything else works without it.
 
 - **Sizes** come from each asset's resources (`PHAssetResource` and its `fileSize` key, which is not public
   API but the only way to know a size without downloading the file). Reading them costs a query per item,
-  so they are cached between reloads.
+  so they are kept on disk (`resources.json`) and a launch only asks Photos about new or changed items.
 - **iCloud storage by app** has no API. macOS's iCloud notification agent caches the answers of Apple's
   quota service in `~/Library/Caches/com.apple.iCloudNotificationAgent/Cache.db`, among them
   `getCloudStorageApps`: the numbers System Settings shows. The plan size follows from the share of the plan

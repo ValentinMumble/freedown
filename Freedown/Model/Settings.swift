@@ -30,10 +30,11 @@ enum Settings {
         return try? decoder.decode(type, from: data)
     }
 
-    static func write(_ value: some Encodable, to name: String) {
+    /// `compact` for big files nobody reads by hand
+    static func write(_ value: some Encodable, to name: String, compact: Bool = false) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = compact ? [] : [.prettyPrinted, .sortedKeys]
         try? FileManager.default.createDirectory(at: supportFolder, withIntermediateDirectories: true)
         try? encoder.encode(value).write(to: supportFolder.appending(path: name))
     }

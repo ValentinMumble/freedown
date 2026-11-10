@@ -5,7 +5,7 @@ struct ContentView: View {
     @Environment(Shrinker.self) private var shrinker
     // For screenshots: open --args -StartDestination similar -SelectFirst YES
     @State private var destination: Destination? =
-        Destination(rawValue: UserDefaults.standard.string(forKey: Settings.Key.startDestination.rawValue) ?? "") ?? .videos
+        Destination(rawValue: UserDefaults.standard.string(forKey: Settings.Key.startDestination.rawValue) ?? "") ?? .cleanup
     @State private var selection: Set<String> = []
     @State private var sort: Sort = .biggest
     @State private var year = 0
@@ -21,7 +21,7 @@ struct ContentView: View {
     @AppStorage(Settings.Key.videosNotShrunkOnly.rawValue) private var notShrunkOnly = false
     @AppStorage(Settings.Key.thumbnailSize.rawValue) private var thumbnailSize = GridView.defaultCardWidth
 
-    private var current: Destination { destination ?? .videos }
+    private var current: Destination { destination ?? .cleanup }
 
     /// The destination's items, before the year and search filters
     private func listed(_ item: Item, _ context: ListContext) -> Bool {
@@ -191,6 +191,16 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var detail: some View {
+        // Clean Up looks at this Mac, not at Photos, so it opens without waiting for the library
+        if current.page == .cleanup {
+            page
+        } else {
+            photosPage
+        }
+    }
+
+    /// The page once Photos has been read, and what shows until then
+    @ViewBuilder private var photosPage: some View {
         switch library.state {
         case .starting:
             ProgressView()
@@ -204,6 +214,11 @@ struct ContentView: View {
             }
             .padding(40)
         case .ready:
+            page
+        }
+    }
+
+    private var page: some View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(current.hint)
                     .foregroundStyle(.secondary)
@@ -230,7 +245,6 @@ struct ContentView: View {
                 case .grid: GridView(items: shown, selection: $selection, actions: actions, arrow: arrow)
                 }
             }
-        }
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
