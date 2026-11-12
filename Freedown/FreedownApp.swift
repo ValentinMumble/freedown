@@ -34,5 +34,10 @@ struct FreedownApp: App {
                     .keyboardShortcut("-")
             }
         }
+        // The app's own Settings enum holds the keys, so SwiftUI's scene is named in full
+        SwiftUI.Settings {
+            SettingsView()
+                .environment(library)
+        }
     }
 }

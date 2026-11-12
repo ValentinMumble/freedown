@@ -15,7 +15,7 @@ struct FilesView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(
-                    "\(Format.count(files.count, "file")) of 1 MB or more, \(Format.bytes(files.reduce(0) { $0 + $1.size })) in all"
+                    "\(Format.count(files.count, "file")) of \(Format.bytes(ICloudDrive.minimum)) or more, \(Format.bytes(files.reduce(0) { $0 + $1.size })) in all"
                 )
                 .foregroundStyle(.secondary)
                 Spacer()

@@ -79,7 +79,7 @@ struct ShrinkView: View {
             }
             .padding(.top, 6)
             Text(
-                "These copies were refused, for a score below the quality bar, a saving under 20% or a different number of frames, and wait here instead of going into Photos. Tick the ones you accept, or compare one first, then save them: each goes into Photos like any other copy, and its original can then be deleted above."
+                "These copies were refused, for a score below the quality bar, a saving under \(Shrinker.minSavingText) or a different number of frames, and wait here instead of going into Photos. Tick the ones you accept, or compare one first, then save them: each goes into Photos like any other copy, and its original can then be deleted above."
             )
             .foregroundStyle(.secondary)
             if !saveFailures.isEmpty {

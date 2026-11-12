@@ -6,10 +6,12 @@
 /// why a photo with someone in it is never suggested. Darkness or blur alone did worse: they also catch the
 /// moon, city lights at night and sunsets.
 enum Accidental {
-    static let maxScore: Float = -0.6
+    static let defaultMaxScore: Float = -0.6
+    /// Set in Settings: lower finds fewer
+    static var maxScore: Float { Float(Settings.number(.accidentalScore, Double(defaultMaxScore))) }
 
     /// Low enough to ask Vision whether anyone is in it
-    static func suspect(_ fingerprint: Similar.Fingerprint?) -> Bool {
+    static func suspect(_ fingerprint: Similar.Fingerprint?, below maxScore: Float) -> Bool {
         guard let fingerprint, let score = fingerprint.score, fingerprint.utility == false else { return false }
         return score < maxScore
     }

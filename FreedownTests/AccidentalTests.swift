@@ -5,13 +5,13 @@ import Testing
 
 struct AccidentalTests {
     @Test func onlyAVeryLowScoreThatIsNoDocumentIsSuspect() {
-        #expect(Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.9, utility: false)))
-        #expect(!Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.5, utility: false)))
+        #expect(Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.9, utility: false), below: Accidental.defaultMaxScore))
+        #expect(!Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.5, utility: false), below: Accidental.defaultMaxScore))
         // A receipt or a whiteboard scores low on looks, but was taken on purpose
-        #expect(!Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.9, utility: true)))
-        #expect(!Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.9, utility: nil)))
-        #expect(!Accidental.suspect(Similar.Fingerprint(hash: nil, score: nil, utility: nil)))
-        #expect(!Accidental.suspect(nil))
+        #expect(!Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.9, utility: true), below: Accidental.defaultMaxScore))
+        #expect(!Accidental.suspect(Similar.Fingerprint(hash: 1, score: -0.9, utility: nil), below: Accidental.defaultMaxScore))
+        #expect(!Accidental.suspect(Similar.Fingerprint(hash: nil, score: nil, utility: nil), below: Accidental.defaultMaxScore))
+        #expect(!Accidental.suspect(nil, below: Accidental.defaultMaxScore))
     }
 
     /// The cache written before the utility flag was kept still reads, with the flag unknown

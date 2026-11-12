@@ -45,6 +45,20 @@ final class Analysis {
         try? JSONEncoder().encode(cache).write(to: Self.cacheFile)
     }
 
+    /// Drops every answer: each analysis looks at every photo again the next time its view opens
+    func forget() {
+        cache = Cache()
+        try? FileManager.default.removeItem(at: Self.cacheFile)
+        similarGroups = nil
+        lifeless = nil
+        accidental = nil
+        halfFrames = nil
+        similarProgress = 0
+        subjectsProgress = 0
+        accidentalProgress = 0
+        halfFrameProgress = 0
+    }
+
     /// Works out again, after the library changed, what was already asked for
     func refresh(_ items: [Item]) async {
         if similarGroups != nil { await computeSimilar(items) }
@@ -103,8 +117,10 @@ final class Analysis {
         let started = Date.now
         let photos = items.filter { $0.kind == .photo && !$0.screenshot }
         let known = cache.fingerprints
+        let gap = Similar.gap
+        let maxDistance = Similar.maxDistance
         let (groups, computed) = await Task.detached(priority: .userInitiated) {
-            Similar.groups(photos, known: known) { fraction in
+            Similar.groups(photos, known: known, gap: gap, maxDistance: maxDistance) { fraction in
                 Task { @MainActor in self.similarProgress = fraction }
             }
         }.value
@@ -147,6 +163,7 @@ final class Analysis {
         let started = Date.now
         let photos = items.filter { $0.kind == .photo && !$0.screenshot && !$0.favorite && !$0.edited }
         let known = cache
+        let maxScore = Accidental.maxScore
         let (fingerprints, subjects) = await Task.detached(priority: .userInitiated) {
             var fingerprints = known.fingerprints
             var subjects = known.subjects
@@ -156,7 +173,7 @@ final class Analysis {
                 if fingerprints[key] == nil || (fingerprints[key]?.score != nil && fingerprints[key]?.utility == nil) {
                     fingerprints[key] = Similar.fingerprint(item.asset)
                 }
-                if Accidental.suspect(fingerprints[key]), subjects[key] == nil, let living = Subjects.living(item.asset) {
+                if Accidental.suspect(fingerprints[key], below: maxScore), subjects[key] == nil, let living = Subjects.living(item.asset) {
                     subjects[key] = living
                 }
                 if index % 20 == 0 {
@@ -170,7 +187,7 @@ final class Analysis {
         cache.subjects.merge(subjects) { _, new in new }
         saveCache(items)
         let found = Set(
-            photos.filter { Accidental.suspect(fingerprints[$0.analysisKey]) && subjects[$0.analysisKey] == false }.map(\.id))
+            photos.filter { Accidental.suspect(fingerprints[$0.analysisKey], below: maxScore) && subjects[$0.analysisKey] == false }.map(\.id))
         accidental = found
         log.notice(
             "Accidental: \(found.count) of \(photos.count) photos, in \(Date.now.timeIntervalSince(started), format: .fixed(precision: 1))s"

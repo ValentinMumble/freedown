@@ -8,7 +8,7 @@ confirmation.
 
 ![Videos, biggest first, with iCloud storage by app in the sidebar](docs/videos.png)
 
-<sub>Photos are blurred in these screenshots, with the app's `BlurPhotos` setting.</sub>
+<sub>Photos are blurred in these screenshots, with Settings › General › Blur photos and videos.</sub>
 
 ## Why
 
@@ -27,7 +27,7 @@ Freedown counts every file iCloud stores for an item, so the sizes it shows add 
 | View | What it does |
 |---|---|
 | Videos, Photos | everything, biggest first, with the size iCloud really stores |
-| Duplicates & Similar | exact copies first, which can all go in one click; then photos taken less than a minute apart that look alike, with the best one picked to keep |
+| Duplicates & Similar | exact copies first, which can all go in one click; then photos taken less than a minute apart (set in Settings) that look alike, with the best one picked to keep |
 | Probably Accidental | photos that look taken by mistake (in a pocket, of the floor, a black or blurred frame), to look at and delete |
 | Live Photos | **Remove Motion**: each one becomes a still, with its edit, the same date, place, favorite and albums |
 | No People or Pets | Live Photos where Vision finds no person, face, cat or dog: the motion rarely matters there |
@@ -36,8 +36,9 @@ Freedown counts every file iCloud stores for an item, so the sizes it shows add 
 | Only Rotated | edits that only rotate an item (or change nothing), where the original is a full extra copy: same Keep Edited Version |
 | JPEG Photos | **Convert to HEIC**: lightly compressed JPEGs are saved again as HEIC, and the copy replaces the JPEG only when it is smaller and looks the same |
 | Screenshots | rarely worth keeping for long |
-| iCloud Drive | files in iCloud Drive and in apps' iCloud folders from 1 MB, biggest first, to move to the Trash or show in Finder |
-| Clean Up | the page it opens on: disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days |
+| iCloud Drive | files in iCloud Drive and in apps' iCloud folders from 1 MB (set in Settings), biggest first, to move to the Trash or show in Finder |
+| Clean Up | the page it opens on (Settings can change that): disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days; right-click an app to keep it for good |
+| Large Files | files and apps in the home folder from 500 MB, biggest first, to move to the Trash or show in Finder; right-click one to skip it or its folder from then on |
 | Half-Frame Scans | lab scans of half-frame film, two shots per picture: check the cut, turn each half, and split them into two photos |
 | Shrinking | re-encodes the videos you pick in Videos to a smaller file, keeping a copy only when it looks the same |
 | Favorites | what the name says |
@@ -58,6 +59,13 @@ answers, so only new and edited photos are analysed again. Deleted items stay in
 30 days, where you can get them back, and they no longer count toward your iCloud storage: Apple says so in
 [Manage your iCloud storage](https://support.apple.com/108922), and on the library this was built on the free
 space rose as soon as items were deleted. So emptying Recently Deleted frees no iCloud space.
+
+**Settings** (Cmd-,): the page to open on (or the one used last), blurred photos for sharing your screen,
+notifications, how long before an app counts as unused and which apps to keep, the smallest large file and
+what to skip, how close similar shots must be in time and look, how many photos Probably Accidental suggests,
+the smallest saving for a shrunk video or HEIC copy, the shrink preset and quality bars, the smallest iCloud
+Drive file, and the data Freedown keeps (its size, forgetting the analyses, clearing the saved-space history).
+A change that needs a new scan starts it a second after the last change.
 
 Drag photos onto another one to give them its date and time, a second after it. Changing dates: move a set so the earliest gets a date and the others keep their spacing, set an exact
 date, shift by an amount, or read the date from the file name (`%Y%m%d_%H%M%S` reads
@@ -159,10 +167,12 @@ libvmaf. Everything else works without it.
   browser's cache waits until it is quit. An app counts as unused when neither Spotlight nor a write to its own
   data (settings, saved windows, its folders) shows use for 60 days, and apps with a program running in the
   background (Karabiner, extensions) are left out. Apps go to the Trash, through Finder when an administrator
-  installed them. Docker's unused volumes are named before they go, since their data is deleted for good. A bar on top splits what can be freed by group, and every line has a bar on the same scale. On request it
-  also looks through the home folder for files and apps of 500 MB or more (about a minute), counting what
-  the disk holds rather than the length a file claims (disk images are mostly empty), and leaving out what
-  other lines cover, node_modules, git data and other apps' containers.
+  installed them. Docker's unused volumes are named before they go, since their data is deleted for good. A bar on top splits what can be freed by group, and every line has a bar on the same scale.
+- **Large Files** looks through the home folder for files and apps of 500 MB or more (or the size set in Settings) the first time it opens
+  (about a minute), counting what the disk holds rather than the length a file claims (disk images are mostly
+  empty), and leaving out what Clean Up, iCloud Drive and Photos cover, node_modules, git data and other apps'
+  containers. The list is kept (`large-files.json`): a launch only checks each file is still there, and Look
+  Again searches anew. A bigger size set in Settings applies at once; a smaller one needs Look Again.
 - **Half-Frame Scans** finds the dark strip of unexposed film between the two shots: columns near the middle
   that are near black while the shots on both sides are clearly brighter, so a night shot is not taken for a
   scan. Each half is cut out at full size and saved as HEIC with the scan's metadata, its turn written as an
@@ -196,7 +206,7 @@ libvmaf. Everything else works without it.
 | `Freedown/Model/HalfFrame.swift` | finding and splitting half-frame scans |
 | `Freedown/Model/Cleanup.swift`, `Finder.swift` | disk space on this Mac that can go, and asking Finder to trash |
 | `Freedown/Model/Savings.swift` | the space Freedown freed and iCloud's free space, kept across launches |
-| `Freedown/Model/Settings.swift` | the settings' names and the app's folders |
+| `Freedown/Model/Settings.swift`, `Freedown/Views/SettingsView.swift` | the settings' names, the app's folders and the Settings window |
 | `Freedown/Model/DateChange.swift` | date changes and reading dates from file names |
 | `Freedown/Model/Destination.swift` | the sidebar entries and sort orders |
 | `Freedown/Views/` | the SwiftUI views |

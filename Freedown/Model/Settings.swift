@@ -11,7 +11,32 @@ enum Settings {
         case startDestination = "StartDestination"
         case selectFirst = "SelectFirst"
         case thumbnailSize = "ThumbnailSize"
+        case largeFileMegabytes = "LargeFileMegabytes"
+        case unusedAppDays = "UnusedAppDays"
+        case keptApps = "KeptApps"
+        case skippedPaths = "LargeFileSkippedPaths"
+        case similarSeconds = "SimilarSeconds"
+        case similarBits = "SimilarBits"
+        case accidentalScore = "AccidentalScore"
+        case minSavingPercent = "MinSavingPercent"
+        case driveMegabytes = "DriveMegabytes"
+        case notifications = "Notifications"
+        case lastDestination = "LastDestination"
     }
+
+    /// The Open On choice that reopens the page used last
+    static let lastPage = "last"
+
+    /// A number set in Settings, or `fallback` when it never was
+    static func number(_ key: Key, _ fallback: Double) -> Double {
+        UserDefaults.standard.object(forKey: key.rawValue) == nil ? fallback : UserDefaults.standard.double(forKey: key.rawValue)
+    }
+
+    static func list(_ key: Key) -> [String] { UserDefaults.standard.stringArray(forKey: key.rawValue) ?? [] }
+    static func setList(_ list: [String], _ key: Key) { UserDefaults.standard.set(list, forKey: key.rawValue) }
+
+    /// What the app's own folders hold on the disk
+    static func storedSize() -> Int64 { [supportFolder, cacheFolder].reduce(0) { $0 + Cleanup.allocated($1) } }
 
     /// The quality bar of a shrink preset
     static func minQualityKey(_ preset: ShrinkPreset) -> String { "MinQuality.\(preset.rawValue)" }

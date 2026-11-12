@@ -49,7 +49,7 @@ struct ReplaceSheet: View {
                 }
             } else if kind == .convertToHEIC {
                 Text(
-                    "Each photo is saved again as HEIC and checked against its JPEG: it takes the JPEG's place, with the same date, place, favorite and albums, only if it scores \(Int(Stills.minScore)) or more out of 100 (the same to the eye) and saves at least 20%. Photos with an HDR layer are left as they are. A refused photo stays a JPEG and is not offered again. The figure above is an estimate from what passed on this library, refusals included; the space freed is measured once converted."
+                    "Each photo is saved again as HEIC and checked against its JPEG: it takes the JPEG's place, with the same date, place, favorite and albums, only if it scores \(Int(Stills.minScore)) or more out of 100 (the same to the eye) and saves at least \(Shrinker.minSavingText). Photos with an HDR layer are left as they are. A refused photo stays a JPEG and is not offered again. The figure above is an estimate from what passed on this library, refusals included; the space freed is measured once converted."
                 )
             } else {
                 Text(

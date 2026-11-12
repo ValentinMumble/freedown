@@ -24,13 +24,15 @@ enum ICloudDrive {
     static let root = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Mobile Documents")
     /// Smaller files are not worth sorting out one by one
     static let minSize: Int64 = 1 << 20
+    /// The smallest file listed: set in Settings, 1 MB at first
+    static var minimum: Int64 { Int64(Settings.number(.driveMegabytes, 1)) << 20 }
 
     private static let keys: [URLResourceKey] = [
         .isRegularFileKey, .isPackageKey, .fileSizeKey, .contentModificationDateKey, .ubiquitousItemDownloadingStatusKey,
     ]
 
-    /// Every file of at least `minSize`, biggest first. A package (a Keynote file, say) counts as one file.
-    nonisolated static func scan(_ folder: URL = root) -> [DriveFile] {
+    /// Every file of at least `minimum`, biggest first. A package (a Keynote file, say) counts as one file.
+    nonisolated static func scan(_ folder: URL = root, minimum: Int64 = minSize) -> [DriveFile] {
         let containers =
             (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
         var files: [DriveFile] = []
@@ -51,7 +53,7 @@ enum ICloudDrive {
                 } else {
                     continue
                 }
-                guard size >= minSize else { continue }
+                guard size >= minimum else { continue }
                 let folders = Array(url.deletingLastPathComponent().pathComponents.dropFirst(container.pathComponents.count))
                 // Outside an app's Documents folder, the file is the app's own business
                 let documents = drive || folders.first == "Documents"

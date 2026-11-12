@@ -139,23 +139,98 @@ final class Library {
 
     /// What can go to free disk space on this Mac (see Cleanup): nil until measured
     private(set) var cleanupItems: [CleanupItem]?
-    /// Files of 500 MB or more, looked for on request: nil until then
+    /// Big files from the last search, the launch before included: nil until one ran
     private(set) var largeFiles: [CleanupItem]?
+    /// When that search ran, and the smallest size it looked for
+    private(set) var largeFilesSearched: Date?
+    private(set) var largeFilesMinimum: Int64?
     /// How many items the large-file search looked at, while it runs
     private(set) var largeFilesProgress: Int?
+    /// Apps Clean Up never offers, by bundle id
+    private(set) var keptApps: [String] = Settings.list(.keptApps)
+    /// Files and folders the large-file search leaves out
+    private(set) var skippedPaths: [String] = Settings.list(.skippedPaths)
+
+    init() {
+        // The last search, without the files gone or skipped since: a stat per file, no folder is read again
+        if let search = LargeFileSearch.load() {
+            largeFiles = search.present.filter { !Cleanup.isInside($0.path, skippedPaths) }.map(Cleanup.item)
+            largeFilesSearched = search.date
+            largeFilesMinimum = search.minimum ?? 500 << 20
+        }
+    }
 
     func findLargeFiles() async {
         largeFilesProgress = 0
-        largeFiles = await Task.detached(priority: .utility) {
-            Cleanup.largeFiles { seen in Task { @MainActor in self.largeFilesProgress = seen } }
+        let minimum = Cleanup.largeFileSize
+        let skipped = skippedPaths
+        let found = await Task.detached(priority: .utility) {
+            Cleanup.largeFiles(minimum: minimum, skipped: skipped) { seen in Task { @MainActor in self.largeFilesProgress = seen } }
         }.value
+        let search = LargeFileSearch(date: .now, minimum: minimum, files: found)
+        largeFiles = found.map(Cleanup.item)
+        largeFilesSearched = search.date
+        largeFilesMinimum = minimum
         largeFilesProgress = nil
+        Task.detached(priority: .utility) { search.save() }
     }
 
     func scanCleanup() async {
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         let photosTrash = (try? recentlyDeleted?.get())?.size
-        cleanupItems = await Task.detached(priority: .userInitiated) { Cleanup.scan(running: running, photosTrash: photosTrash) }.value
+        let kept = Set(keptApps)
+        let unusedDays = Cleanup.unusedDays
+        cleanupItems = await Task.detached(priority: .userInitiated) {
+            Cleanup.scan(running: running, photosTrash: photosTrash, kept: kept, unusedDays: unusedDays)
+        }.value
+    }
+
+    /// Never offers the app again, and takes its line away now
+    func keepApp(_ item: CleanupItem) {
+        guard let bundle = item.appBundle, !keptApps.contains(bundle) else { return }
+        keptApps.append(bundle)
+        Settings.setList(keptApps, .keptApps)
+        cleanupItems = cleanupItems?.filter { $0.id != item.id }
+    }
+
+    /// Offers the app again, if unused, once Clean Up has measured again
+    func unkeepApp(_ bundle: String) {
+        keptApps.removeAll { $0 == bundle }
+        Settings.setList(keptApps, .keptApps)
+        rework(.cleanup)
+    }
+
+    /// Leaves the file or folder out of later searches, and out of the list now
+    func skip(_ path: String) {
+        guard !skippedPaths.contains(path) else { return }
+        skippedPaths.append(path)
+        Settings.setList(skippedPaths, .skippedPaths)
+        largeFiles = largeFiles?.filter { !Cleanup.isInside($0.reveal?.path ?? "", [path]) }
+    }
+
+    /// Looked at again from the next search on
+    func unskip(_ path: String) {
+        skippedPaths.removeAll { $0 == path }
+        Settings.setList(skippedPaths, .skippedPaths)
+    }
+
+    /// What a change in Settings affects
+    enum Rework { case cleanup, drive, analysis }
+    @ObservationIgnored private var pendingRework: [Rework: Task<Void, Never>] = [:]
+
+    /// Works out again what a change in Settings affects, a second after the last change: a stepper clicked
+    /// five times runs it once
+    func rework(_ part: Rework) {
+        pendingRework[part]?.cancel()
+        pendingRework[part] = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            switch part {
+            case .cleanup: if cleanupItems != nil { await scanCleanup() }
+            case .drive: if driveFiles != nil { await scanDrive() }
+            case .analysis: await analysis.refresh(items)
+            }
+        }
     }
 
     /// Cleans one item, then measures it and the Trash again, which gets what goes to it. Returns what was
@@ -190,7 +265,8 @@ final class Library {
     // MARK: iCloud Drive
 
     func scanDrive() async {
-        driveFiles = await Task.detached(priority: .userInitiated) { ICloudDrive.scan() }.value
+        let minimum = ICloudDrive.minimum
+        driveFiles = await Task.detached(priority: .userInitiated) { ICloudDrive.scan(minimum: minimum) }.value
     }
 
     /// Moves files to the Trash and counts what left iCloud. Returns why some could not go.
@@ -227,6 +303,12 @@ final class Library {
     func addSaving(_ kind: Saving.Kind, _ count: Int, _ bytes: Int64) {
         guard count > 0 else { return }
         savings.append(Saving(date: .now, kind: kind, count: count, bytes: bytes))
+        Savings.save(savings)
+    }
+
+    /// Starts the saved-space totals again from zero
+    func clearSavings() {
+        savings = []
         Savings.save(savings)
     }
 

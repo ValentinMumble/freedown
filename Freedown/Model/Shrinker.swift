@@ -57,7 +57,10 @@ final class Shrinker {
     }
 
     /// Keep a copy only when it is at least this much smaller
-    nonisolated static let minSaving = 0.2
+    nonisolated static let defaultMinSavingPercent = 20
+    /// The smallest saving that keeps a shrunk video or a HEIC copy: set in Settings, 20% at first
+    nonisolated static var minSaving: Double { Settings.number(.minSavingPercent, Double(defaultMinSavingPercent)) / 100 }
+    nonisolated static var minSavingText: String { "\(Int((minSaving * 100).rounded()))%" }
 
     private(set) var jobs: [Job] = [] {
         didSet { saveQueue() }

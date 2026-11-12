@@ -21,20 +21,30 @@ enum Similar {
         var utility: Bool?
     }
 
-    static let gap: TimeInterval = 60
+    static let defaultGap: TimeInterval = 60
+    /// How far apart two shots of one moment can be: set in Settings, a minute at first
+    static var gap: TimeInterval { Settings.number(.similarSeconds, defaultGap) }
+    /// "less than a minute", for the texts
+    static var gapText: String {
+        let seconds = Int(gap)
+        if seconds == 60 { return "less than a minute" }
+        return seconds % 60 == 0 ? "less than \(seconds / 60) minutes" : "less than \(seconds) seconds"
+    }
     /// Looking alike is a 64-bit difference hash of a small render: one bit per pixel of a 9x8 grey thumbnail,
     /// set when it is brighter than its right neighbour. On the web version's library, shots of the same
     /// moment differ by up to about 16 bits, different scenes by 20 to 40 (32 is chance). Vision's feature
     /// print was tried too: it calls two framings of the same view "very close", which are both worth keeping.
-    static let maxDistance = 16
+    static let defaultMaxDistance = 16
+    /// Set in Settings: lower is stricter
+    static var maxDistance: Int { Int(Settings.number(.similarBits, Double(defaultMaxDistance))) }
 
     /// Groups the photos (any order). `known` holds fingerprints computed before, by analysis key; the result
     /// returns them all.
     nonisolated static func groups(
-        _ photos: [Item], known: [String: Fingerprint], progress: @escaping (Double) -> Void
+        _ photos: [Item], known: [String: Fingerprint], gap: TimeInterval, maxDistance: Int, progress: @escaping (Double) -> Void
     ) -> ([ItemGroup], [String: Fingerprint]) {
         let shots = photos.sorted { $0.date < $1.date }
-        // Only photos with a neighbour taken within a minute need a fingerprint
+        // Only photos with a neighbour taken close enough need a fingerprint
         var candidates = Set<String>()
         for (first, second) in zip(shots, shots.dropFirst()) where second.date.timeIntervalSince(first.date) <= gap {
             candidates.insert(first.id)
@@ -53,14 +63,16 @@ enum Similar {
             current = []
         }
         for item in shots {
-            if let previous = current.last, !alike(previous, item, fingerprints) { close() }
+            if let previous = current.last, !alike(previous, item, fingerprints, gap: gap, maxDistance: maxDistance) { close() }
             current.append(item)
         }
         close()
         return (groups, fingerprints)
     }
 
-    private static func alike(_ first: Item, _ second: Item, _ fingerprints: [String: Fingerprint]) -> Bool {
+    private static func alike(
+        _ first: Item, _ second: Item, _ fingerprints: [String: Fingerprint], gap: TimeInterval, maxDistance: Int
+    ) -> Bool {
         guard second.date.timeIntervalSince(first.date) <= gap,
             let firstHash = fingerprints[first.analysisKey]?.hash, let secondHash = fingerprints[second.analysisKey]?.hash
         else { return false }

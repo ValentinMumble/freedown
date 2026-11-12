@@ -5,14 +5,17 @@ import UserNotifications
 /// while they are here to answer.
 @MainActor
 enum Notifier {
+    /// Set in Settings, on at first
+    static var enabled: Bool { UserDefaults.standard.object(forKey: Settings.Key.notifications.rawValue) as? Bool ?? true }
+
     static func ask() {
-        guard !FreedownApp.isTesting else { return }
+        guard !FreedownApp.isTesting, enabled else { return }
         Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) }
     }
 
     /// Only when the app is in the background: otherwise the window already shows it
     static func post(_ title: String, _ body: String) {
-        guard !FreedownApp.isTesting, !NSApp.isActive else { return }
+        guard !FreedownApp.isTesting, enabled, !NSApp.isActive else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

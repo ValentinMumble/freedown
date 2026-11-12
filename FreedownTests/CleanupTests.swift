@@ -20,9 +20,27 @@ struct CleanupTests {
 
     @Test func anAppIsUnusedAfterSixtyDaysOrWhenNeverOpened() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        #expect(Cleanup.isUnused(nil, now: now))
-        #expect(Cleanup.isUnused(now.addingTimeInterval(-61 * 86_400), now: now))
-        #expect(!Cleanup.isUnused(now.addingTimeInterval(-59 * 86_400), now: now))
+        #expect(Cleanup.isUnused(nil, days: 60, now: now))
+        #expect(Cleanup.isUnused(now.addingTimeInterval(-61 * 86_400), days: 60, now: now))
+        #expect(!Cleanup.isUnused(now.addingTimeInterval(-59 * 86_400), days: 60, now: now))
+        #expect(Cleanup.isUnused(now.addingTimeInterval(-31 * 86_400), days: 30, now: now))
+    }
+
+    /// A skipped folder covers what it holds, not a neighbour whose name starts the same
+    @Test func skipsWhatIsInsideASkippedFolder() {
+        let skipped = ["/Users/me/VMs", "/Users/me/Downloads/keep.dmg"]
+        #expect(Cleanup.isInside("/Users/me/VMs", skipped))
+        #expect(Cleanup.isInside("/Users/me/VMs/linux.qcow2", skipped))
+        #expect(!Cleanup.isInside("/Users/me/VMs-old/linux.qcow2", skipped))
+        #expect(Cleanup.isInside("/Users/me/Downloads/keep.dmg", skipped))
+        #expect(!Cleanup.isInside("/Users/me/Downloads/other.dmg", skipped))
+    }
+
+    @Test func readsTheBundleOfAnAppLine() {
+        let app = CleanupItem(id: "app-com.example.app", group: .apps, name: "Example", detail: "", size: 1, action: .none)
+        let cache = CleanupItem(id: "dev-npm", group: .developer, name: "npm", detail: "", size: 1, action: .none)
+        #expect(app.appBundle == "com.example.app")
+        #expect(cache.appBundle == nil)
     }
 
     /// A program from inside the app, or from its maker's folder, means the app works in the background
@@ -48,5 +66,38 @@ struct CleanupTests {
         #expect(item("dev-npm", .developer).refills)
         #expect(item("browser-com.google.Chrome", .browsers).refills)
         #expect(!item("trash", .trash).refills)
+    }
+
+    /// A launch keeps only the files of the last search still where they were
+    @Test func aSavedSearchLeavesOutFilesGoneSince() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "freedown-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let kept = folder.appending(path: "kept.dmg")
+        try Data([1]).write(to: kept)
+        let gone = folder.appending(path: "gone.dmg")
+        let search = LargeFileSearch(
+            date: .now, minimum: 500 << 20,
+            files: [LargeFile(path: kept.path, size: 600 << 20, modified: nil), LargeFile(path: gone.path, size: 700 << 20, modified: nil)])
+        #expect(search.present.map(\.path) == [kept.path])
+    }
+
+    /// A search saved before the size could be set still loads, with no size of its own
+    @Test func readsASearchSavedWithoutItsSize() throws {
+        let json = #"{"date":"2026-11-12T10:00:00Z","files":[{"path":"/tmp/a.dmg","size":600}]}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let search = try decoder.decode(LargeFileSearch.self, from: Data(json.utf8))
+        #expect(search.minimum == nil)
+        #expect(search.files == [LargeFile(path: "/tmp/a.dmg", size: 600, modified: nil)])
+    }
+
+    /// A file inside an app's data is only shown: that app removes it
+    @Test func filesInAppDataAreOnlyShown() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let inApp = Cleanup.item(LargeFile(path: home.appending(path: "Library/Application Support/Game/data.pak").path, size: 1, modified: nil))
+        let download = Cleanup.item(LargeFile(path: home.appending(path: "Downloads/movie.mkv").path, size: 1, modified: nil))
+        #expect(!inApp.cleanable)
+        if case .moveToTrash = download.action {} else { Issue.record("a download should go to the Trash") }
     }
 }

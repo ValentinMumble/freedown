@@ -2,11 +2,11 @@ import Foundation
 
 /// The entries of the sidebar: each one a view of the library with its own filter and explanation.
 enum Destination: String, CaseIterable, Identifiable, Hashable {
-    case cleanup, videos, photos, similar, accidental, live, lifeless, hiddenMotion, edited, rotated, jpeg, screenshots,
+    case cleanup, largeFiles, videos, photos, similar, accidental, live, lifeless, hiddenMotion, edited, rotated, jpeg, screenshots,
         shrinking, drive, halfFrame, favorites
 
     /// What the main area shows for a destination
-    enum Page { case grid, groups, shrinking, files, cleanup, halfFrame }
+    enum Page { case grid, groups, shrinking, files, cleanup, largeFiles, halfFrame }
 
     var id: String { rawValue }
 
@@ -17,7 +17,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .videos, .photos: "Library"
         case .similar, .accidental, .live, .lifeless, .hiddenMotion, .edited, .rotated, .jpeg, .screenshots, .shrinking, .drive:
             "Free up space"
-        case .cleanup: "This Mac"
+        case .cleanup, .largeFiles: "This Mac"
         case .halfFrame: "Film"
         case .favorites: "Browse"
         }
@@ -26,12 +26,16 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
     /// Whether the view lists photos and videos, with their details panel and actions
     var showsItems: Bool { page == .grid || page == .groups || page == .shrinking }
 
+    /// Whether the view looks at this Mac's disk rather than at Photos, so it opens without waiting for the library
+    var onThisMac: Bool { section == "This Mac" }
+
     var page: Page {
         switch self {
         case .similar: .groups
         case .shrinking: .shrinking
         case .drive: .files
         case .cleanup: .cleanup
+        case .largeFiles: .largeFiles
         case .halfFrame: .halfFrame
         default: .grid
         }
@@ -47,6 +51,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking: "Shrinking"
         case .drive: "iCloud Drive"
         case .cleanup: "Clean Up"
+        case .largeFiles: "Large Files"
         case .halfFrame: "Half-Frame Scans"
         case .favorites: "Favorites"
         case .edited: "Edited"
@@ -68,6 +73,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .shrinking: "gearshape.2"
         case .drive: "icloud"
         case .cleanup: "internaldrive"
+        case .largeFiles: "scalemass"
         case .halfFrame: "rectangle.split.2x1"
         case .favorites: "heart"
         case .edited: "slider.horizontal.3"
@@ -83,10 +89,10 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
     var hint: String {
         switch self {
         case .videos:
-            "Every video in the library. Videos take most of the space: the biggest come first. Select some, then Shrink to re-encode them to a smaller file with ffmpeg: a copy is kept only if it is at least 20% smaller and looks the same. An edited video (rotated, trimmed) is shrunk as it looks now. Slow-motion videos are left out: their copy would lose the slow motion."
+            "Every video in the library. Videos take most of the space: the biggest come first. Select some, then Shrink to re-encode them to a smaller file with ffmpeg: a copy is kept only if it is at least \(Shrinker.minSavingText) smaller and looks the same. An edited video (rotated, trimmed) is shrunk as it looks now. Slow-motion videos are left out: their copy would lose the slow motion."
         case .photos: "Every photo in the library."
         case .similar:
-            "Exact copies first: one of each is kept (a favorite, then an edited one, then the one in more albums) and the rest can go in one click. Then photos taken less than a minute apart that look alike: check each group. Click a shot to see it on the right, click Keep or Delete under it to switch."
+            "Exact copies first: one of each is kept (a favorite, then an edited one, then the one in more albums) and the rest can go in one click. Then photos taken \(Similar.gapText) apart that look alike: check each group. Click a shot to see it on the right, click Keep or Delete under it to switch."
         case .accidental:
             "Photos that look taken by mistake: in a pocket, of the floor, a black or blurred frame. Vision, on this Mac, gave them a very low score and found nobody in them. Favorites and edited photos are left out. Some may still be worth keeping, so look before deleting."
         case .screenshots: "Screenshots are rarely worth keeping for long."
@@ -96,15 +102,17 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         case .halfFrame:
             "Scans of half-frame film: the lab puts two shots side by side on one picture, with a dark strip between them. Check each cut, turn the halves you shot holding the camera sideways, then Split: each scan becomes two photos with its date, place, favorite and albums, and the scan goes to Recently Deleted."
         case .cleanup:
-            "Disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again on their own, and apps not opened for a while. Each size is measured on the disk, and measured again after cleaning. Nothing here touches your photos or iCloud."
+            "Disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again on their own, and apps not opened for a while. Each size is measured on the disk, and measured again after cleaning. Right-click an app to keep it for good. Nothing here touches your photos or iCloud."
+        case .largeFiles:
+            "The biggest files and apps in your home folder, measured by what they hold on the disk, from the size set in Settings (500 MB at first). It reads every folder, so it takes a minute or two. Right-click a file to skip it, or its folder, from then on. What Clean Up, iCloud Drive and Photos already cover is left out. Move to Trash puts a file in the Trash: it frees the space once the Trash is emptied."
         case .drive:
-            "Files in iCloud Drive and in apps' iCloud folders, from 1 MB, biggest first. Select some, then Move to Trash: they leave iCloud Drive on all your devices. When macOS keeps a file for the app that made it, Finder moves it instead, and macOS asks you once to allow that. Files an app keeps for itself, like WhatsApp's chat backup, are listed so you see what they take, but are deleted from that app. Double-click a file to open it."
+            "Files in iCloud Drive and in apps' iCloud folders, from \(Format.bytes(ICloudDrive.minimum)), biggest first. Select some, then Move to Trash: they leave iCloud Drive on all your devices. When macOS keeps a file for the app that made it, Finder moves it instead, and macOS asks you once to allow that. Files an app keeps for itself, like WhatsApp's chat backup, are listed so you see what they take, but are deleted from that app. Double-click a file to open it."
         case .edited:
             "iCloud keeps both the original and the edited version of these. Select some, then Keep Edited Version: the edited version is saved as a new item with the same date, place, favorite and albums, and the original is deleted. A Live Photo stays a Live Photo, with its edited motion. The edit can no longer be undone."
         case .rotated:
             "Edits that only rotate an item, or change nothing at all: iCloud still keeps the original under them, a full extra copy. Select some, then Keep Edited Version: the rotated version is saved as a new item with the same date, place, favorite and albums, and the original is deleted. A Live Photo stays a Live Photo, with its rotated motion."
         case .jpeg:
-            "JPEG photos that HEIC could make smaller. Only lightly compressed ones are listed (1.5 bits per pixel or more): most phone JPEGs are already about as small as HEIC would make them. Select some, then Convert to HEIC: each copy is checked against its JPEG before it takes its place, with the same date, place, favorite and albums. A photo with an HDR layer, or whose copy would look different or save under 20%, stays a JPEG and leaves this list. On this library about half of those listed passed. A Google Motion Photo loses its hidden video."
+            "JPEG photos that HEIC could make smaller. Only lightly compressed ones are listed (1.5 bits per pixel or more): most phone JPEGs are already about as small as HEIC would make them. Select some, then Convert to HEIC: each copy is checked against its JPEG before it takes its place, with the same date, place, favorite and albums. A photo with an HDR layer, or whose copy would look different or save under \(Shrinker.minSavingText), stays a JPEG and leaves this list. On this library about half of those listed passed. A Google Motion Photo loses its hidden video."
         case .hiddenMotion:
             "Stills that still store the motion clip of the Live Photo they came from, though Photos no longer plays it, so iCloud still counts it. Select them, then Remove Motion: each is saved again as a new file, and iCloud lets go of the clip."
         case .lifeless:
@@ -129,7 +137,7 @@ enum Destination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .videos: item.kind == .video
         case .photos: item.kind == .photo
-        case .similar, .shrinking, .drive, .cleanup, .halfFrame: false
+        case .similar, .shrinking, .drive, .cleanup, .largeFiles, .halfFrame: false
         case .screenshots: item.screenshot
         case .favorites: item.favorite
         case .edited: Replacement.keepEdit.applies(to: item)

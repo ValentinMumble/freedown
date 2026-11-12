@@ -47,6 +47,9 @@ struct CleanupItem: Identifiable, Sendable {
     /// How many things cleaning it deletes, for the saved-space history
     var count = 1
 
+    /// The app's bundle id, on a line of an unused app
+    var appBundle: String? { group == .apps && id.hasPrefix("app-") ? String(id.dropFirst("app-".count)) : nil }
+
     /// Comes back on its own as tools and apps work: caches, update downloads, Docker images
     var refills: Bool {
         switch group {
@@ -73,23 +76,49 @@ struct CleanupItem: Identifiable, Sendable {
     }
 }
 
+/// A big file or app, as the large-file search found it
+struct LargeFile: Codable, Sendable, Equatable {
+    let path: String
+    let size: Int64
+    let modified: Date?
+}
+
+/// The last large-file search, kept on disk so the page opens with it: a launch only checks that each file is still
+/// where it was, rather than reading every folder again
+struct LargeFileSearch: Codable, Sendable {
+    let date: Date
+    /// The smallest size it looked for; nil in a search saved before the size could be changed, which was 500 MB
+    let minimum: Int64?
+    let files: [LargeFile]
+
+    /// The files still there: those moved to the Trash or deleted since are left out
+    var present: [LargeFile] { files.filter { FileManager.default.fileExists(atPath: $0.path) } }
+
+    private static let file = "large-files.json"
+    static func load() -> LargeFileSearch? { Settings.read(LargeFileSearch.self, from: file) }
+    func save() { Settings.write(self, to: Self.file, compact: true) }
+}
+
 enum Cleanup {
-    static let unusedDays = 60
+    static let defaultUnusedDays = 60
+    /// Days without opening before an app is listed: set in Settings, 60 at first
+    static var unusedDays: Int { Int(Settings.number(.unusedAppDays, Double(defaultUnusedDays))) }
     /// Smaller items are not worth a line
     static let minSize: Int64 = 1 << 20
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser
     private static let caches = home.appending(path: "Library/Caches")
 
-    /// Everything worth listing, biggest first in each group. `running` holds the bundle ids of open apps.
-    nonisolated static func scan(running: Set<String>, photosTrash: Int64?) -> [CleanupItem] {
+    /// Everything worth listing, biggest first in each group. `running` holds the bundle ids of open apps, `kept`
+    /// those of apps never to offer.
+    nonisolated static func scan(running: Set<String>, photosTrash: Int64?, kept: Set<String>, unusedDays: Int) -> [CleanupItem] {
         var items: [CleanupItem] = []
         items += trash()
         items += docker()
         items += developer()
         items += updates()
         items += browsers(running: running)
-        items += apps(running: running)
+        items += apps(running: running, kept: kept, unusedDays: unusedDays)
         items += other(running: running, photosTrash: photosTrash, listed: items)
         return items.filter { $0.size >= minSize || $0.group == .trash }
     }
@@ -240,7 +269,7 @@ enum Cleanup {
         }
     }
 
-    private static func apps(running: Set<String>) -> [CleanupItem] {
+    private static func apps(running: Set<String>, kept: Set<String>, unusedDays: Int) -> [CleanupItem] {
         let folders = [URL(filePath: "/Applications"), home.appending(path: "Applications")]
         let apps = folders.flatMap { folder in
             ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "app" }
@@ -249,11 +278,11 @@ enum Cleanup {
         let processes = run("/bin/ps", ["-axo", "comm="]).output.split(separator: "\n").map(String.init)
         return apps.compactMap { app in
             // An uninstaller is how its app's background parts go: it stays until they are gone
-            guard let bundle = Bundle(url: app)?.bundleIdentifier, !running.contains(bundle), !protectedApps.contains(bundle),
+            guard let bundle = Bundle(url: app)?.bundleIdentifier, !running.contains(bundle), !protectedApps.contains(bundle), !kept.contains(bundle),
                 !app.lastPathComponent.localizedCaseInsensitiveContains("uninstall"), !inBackground(app, bundle: bundle, processes: processes)
             else { return nil }
             let opened = lastOpened(app, bundle: bundle)
-            guard isUnused(opened) else { return nil }
+            guard isUnused(opened, days: unusedDays) else { return nil }
             let extensions = (try? FileManager.default.contentsOfDirectory(atPath: app.appending(path: "Contents/PlugIns").path))?
                 .contains { $0.hasSuffix(".appex") } ?? false
             return CleanupItem(
@@ -315,18 +344,23 @@ enum Cleanup {
 
     // MARK: Large files
 
-    static let largeFileSize: Int64 = 500 << 20
+    static let defaultLargeFileMegabytes = 500
+    /// What the large-file search looks for: the size set in Settings, 500 MB at first
+    static var largeFileSize: Int64 {
+        let megabytes = UserDefaults.standard.integer(forKey: Settings.Key.largeFileMegabytes.rawValue)
+        return Int64(megabytes > 0 ? megabytes : defaultLargeFileMegabytes) << 20
+    }
 
-    /// Files and packages (an app, a game) of 500 MB or more in the home folder, biggest first. It reads every
+    /// Files and packages (an app, a game) of `minimum` or more in the home folder, biggest first. It reads every
     /// folder, so it takes minutes: what other lines cover is skipped (the Trash, caches, iCloud Drive, the Photos
     /// library), so are folders that only make copies (node_modules, git data, OrbStack's view of its machine)
-    /// and other apps' private containers, which macOS would ask about one by one. `progress` hears how many
-    /// items were looked at.
-    nonisolated static func largeFiles(progress: @escaping @Sendable (Int) -> Void) -> [CleanupItem] {
-        let library = home.appending(path: "Library")
+    /// and other apps' private containers, which macOS would ask about one by one, and the files and folders set to
+    /// be skipped. `progress` hears how many items were looked at.
+    nonisolated static func largeFiles(minimum: Int64, skipped: [String], progress: @escaping @Sendable (Int) -> Void) -> [LargeFile] {
         let skippedPaths = Set(
             [".Trash", "OrbStack", "Library/Caches", "Library/Containers", "Library/Group Containers", "Library/Mobile Documents",
-             "Pictures/Photos Library.photoslibrary"].map { home.appending(path: $0).path })
+             "Pictures/Photos Library.photoslibrary"].map { home.appending(path: $0).path }
+        ).union(skipped)
         let skippedNames: Set<String> = ["node_modules", ".git"]
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isPackageKey, .isRegularFileKey, .totalFileAllocatedSizeKey, .contentModificationDateKey, .volumeIdentifierKey]
         let homeVolume = (try? home.resourceValues(forKeys: [.volumeIdentifierKey]))?.volumeIdentifier as? NSObject
@@ -346,27 +380,34 @@ enum Cleanup {
                     enumerator.skipDescendants()
                 } else if values.isPackage == true {
                     let size = allocated(url)
-                    if size >= largeFileSize { found.append((url, size, values.contentModificationDate)) }
+                    if size >= minimum { found.append((url, size, values.contentModificationDate)) }
                 }
                 continue
             }
             // What the disk holds, not the length a file claims: disk images are mostly empty space
-            guard values.isRegularFile == true, let size = values.totalFileAllocatedSize.map(Int64.init), size >= largeFileSize else { continue }
+            guard values.isRegularFile == true, !skippedPaths.contains(url.path), let size = values.totalFileAllocatedSize.map(Int64.init),
+                size >= minimum
+            else { continue }
             found.append((url, size, values.contentModificationDate))
         }
-        return found.sorted { $0.1 > $1.1 }.prefix(100).map { url, size, modified in
-            let folder = url.deletingLastPathComponent().path.replacingOccurrences(of: home.path, with: "~")
-            let changed = modified.map { " · changed \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
-            // Inside an app's data, the app keeps track of its files: delete them from it
-            if url.path.hasPrefix(library.path + "/") {
-                return CleanupItem(
-                    id: "file-\(url.path)", group: .files, name: url.lastPathComponent,
-                    detail: "In \(folder)\(changed). Part of an app's data: remove it from that app.", size: size, action: .none, reveal: url)
-            }
+        return found.sorted { $0.1 > $1.1 }.prefix(100).map { LargeFile(path: $0.0.path, size: $0.1, modified: $0.2) }
+    }
+
+    /// A line for a file the search found
+    nonisolated static func item(_ file: LargeFile) -> CleanupItem {
+        let url = URL(filePath: file.path)
+        let folder = url.deletingLastPathComponent().path.replacingOccurrences(of: home.path, with: "~")
+        let changed = file.modified.map { " · changed \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
+        // Inside an app's data, the app keeps track of its files: delete them from it
+        if file.path.hasPrefix(home.appending(path: "Library").path + "/") {
             return CleanupItem(
-                id: "file-\(url.path)", group: .files, name: url.lastPathComponent, detail: "In \(folder)\(changed).", size: size,
-                action: .moveToTrash(url), reveal: url)
+                id: "file-\(file.path)", group: .files, name: url.lastPathComponent,
+                detail: "In \(folder)\(changed). Part of an app's data: remove it from that app.", size: file.size, action: .none,
+                reveal: url)
         }
+        return CleanupItem(
+            id: "file-\(file.path)", group: .files, name: url.lastPathComponent, detail: "In \(folder)\(changed).", size: file.size,
+            action: .moveToTrash(url), reveal: url)
     }
 
     // MARK: Helpers
@@ -374,9 +415,14 @@ enum Cleanup {
     /// Apps macOS needs or protects
     private static let protectedApps: Set<String> = ["com.apple.Safari", "com.apple.dt.Xcode"]
 
-    static func isUnused(_ opened: Date?, now: Date = .now) -> Bool {
+    static func isUnused(_ opened: Date?, days: Int, now: Date = .now) -> Bool {
         guard let opened else { return true }
-        return now.timeIntervalSince(opened) > Double(unusedDays) * 86_400
+        return now.timeIntervalSince(opened) > Double(days) * 86_400
+    }
+
+    /// Whether the path is one of `paths` or inside one of them
+    static func isInside(_ path: String, _ paths: [String]) -> Bool {
+        paths.contains { path == $0 || path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
     }
 
     /// Spotlight's record of the last launch, or the newest write to the app's own data (settings, saved
@@ -495,7 +541,7 @@ enum Cleanup {
 }
 
 /// Where an app with a bundle id is installed, without touching AppKit off the main thread
-private enum LaunchServices {
+enum LaunchServices {
     static func path(_ bundle: String) -> String? {
         guard let urls = LSCopyApplicationURLsForBundleIdentifier(bundle as CFString, nil)?.takeRetainedValue() as? [URL] else { return nil }
         return urls.first?.path

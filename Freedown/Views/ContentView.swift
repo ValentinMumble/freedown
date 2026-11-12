@@ -4,8 +4,7 @@ struct ContentView: View {
     @Environment(Library.self) private var library
     @Environment(Shrinker.self) private var shrinker
     // For screenshots: open --args -StartDestination similar -SelectFirst YES
-    @State private var destination: Destination? =
-        Destination(rawValue: UserDefaults.standard.string(forKey: Settings.Key.startDestination.rawValue) ?? "") ?? .cleanup
+    @State private var destination: Destination? = Self.startPage
     @State private var selection: Set<String> = []
     @State private var sort: Sort = .biggest
     @State private var year = 0
@@ -22,6 +21,13 @@ struct ContentView: View {
     @AppStorage(Settings.Key.thumbnailSize.rawValue) private var thumbnailSize = GridView.defaultCardWidth
 
     private var current: Destination { destination ?? .cleanup }
+
+    /// The page set in Settings, or the one used last
+    private static var startPage: Destination {
+        let start = UserDefaults.standard.string(forKey: Settings.Key.startDestination.rawValue) ?? ""
+        let page = start == Settings.lastPage ? UserDefaults.standard.string(forKey: Settings.Key.lastDestination.rawValue) ?? "" : start
+        return Destination(rawValue: page) ?? .cleanup
+    }
 
     /// The destination's items, before the year and search filters
     private func listed(_ item: Item, _ context: ListContext) -> Bool {
@@ -121,6 +127,7 @@ struct ContentView: View {
         .onChange(of: destination) {
             selection = []
             year = 0
+            UserDefaults.standard.set(destination?.rawValue, forKey: Settings.Key.lastDestination.rawValue)
         }
         .alert("Photos refused the change", isPresented: errorShown) {
             Button("OK") { library.error = nil }
@@ -191,8 +198,7 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var detail: some View {
-        // Clean Up looks at this Mac, not at Photos, so it opens without waiting for the library
-        if current.page == .cleanup {
+        if current.onThisMac {
             page
         } else {
             photosPage
@@ -229,6 +235,7 @@ struct ContentView: View {
                 case .shrinking: ShrinkView(selection: $selection, actions: actions)
                 case .files: FilesView()
                 case .cleanup: CleanupView()
+                case .largeFiles: CleanupView(largeFiles: true)
                 case .halfFrame: HalfFrameView()
                 case .grid where current == .lifeless && library.analysis.lifeless == nil:
                     ProgressView(value: library.analysis.subjectsProgress) {

@@ -38,7 +38,7 @@ struct GroupsView: View {
                 } else {
                     Text("Similar shots").font(.title3.weight(.semibold)).padding(.top, 8)
                     ProgressView(value: library.analysis.similarProgress) {
-                        Text("Comparing photos taken less than a minute apart…")
+                        Text("Comparing photos taken \(Similar.gapText) apart…")
                     }
                     .task { await library.findSimilar() }
                 }

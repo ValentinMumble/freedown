@@ -4,6 +4,7 @@ struct Sidebar: View {
     @Environment(Library.self) private var library
     @Environment(Shrinker.self) private var shrinker
     @Binding var destination: Destination?
+    @AppStorage(Settings.Key.largeFileMegabytes.rawValue) private var largeFileMegabytes = Cleanup.defaultLargeFileMegabytes
 
     var body: some View {
         List(selection: $destination) {
@@ -44,6 +45,11 @@ struct Sidebar: View {
         if entry == .cleanup {
             guard let items = library.cleanupItems else { return "" }
             return Format.bytes(items.filter(\.cleanable).reduce(0) { $0 + $1.size })
+        }
+        if entry == .largeFiles {
+            guard library.largeFilesProgress == nil, let all = library.largeFiles else { return "" }
+            let files = all.filter { $0.size >= Int64(largeFileMegabytes) << 20 }
+            return "\(files.count.formatted()) · \(Format.bytes(files.reduce(0) { $0 + $1.size }))"
         }
         if entry == .drive {
             guard let files = library.driveFiles else { return "" }
