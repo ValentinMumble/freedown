@@ -76,6 +76,22 @@ struct CleanupItem: Identifiable, Sendable {
     }
 }
 
+/// This Mac's startup disk: its size and the space no file holds
+struct MacDisk: Equatable, Sendable {
+    let total: Int64
+    let free: Int64
+    var used: Int64 { total - free }
+
+    /// Free space without what macOS could free on its own (purgeable space), so a clean shows at once
+    static func read() -> MacDisk? {
+        let keys: Set<URLResourceKey> = [.volumeAvailableCapacityKey, .volumeTotalCapacityKey]
+        guard let values = try? FileManager.default.homeDirectoryForCurrentUser.resourceValues(forKeys: keys),
+            let free = values.volumeAvailableCapacity, let total = values.volumeTotalCapacity
+        else { return nil }
+        return MacDisk(total: Int64(total), free: Int64(free))
+    }
+}
+
 /// A big file or app, as the large-file search found it
 struct LargeFile: Codable, Sendable, Equatable {
     let path: String

@@ -10,7 +10,6 @@ struct CleanupView: View {
     @State private var confirming: CleanupItem?
     @State private var working: Set<String> = []
     @State private var results: [String: String] = [:]
-    @State private var free = Self.freeSpace()
     @State private var highlighted: String?
     @AppStorage(Settings.Key.largeFileMegabytes.rawValue) private var largeFileMegabytes = Cleanup.defaultLargeFileMegabytes
 
@@ -65,7 +64,7 @@ struct CleanupView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text("\(Format.bytes(total)) can be freed").font(.title3.weight(.semibold))
-                Text(free.map { "\(Format.bytes($0)) free now" } ?? "").foregroundStyle(.secondary)
+                Text(library.disk.map { "\(Format.bytes($0.free)) free now" } ?? "").foregroundStyle(.secondary)
                 Spacer()
                 Button("Measure Again", systemImage: "arrow.clockwise") { Task { await measure() } }
                     .disabled(!working.isEmpty)
@@ -151,7 +150,7 @@ struct CleanupView: View {
             let files = items
             HStack(alignment: .firstTextBaseline) {
                 Text("\(Format.count(files.count, "file")), \(Format.bytes(files.reduce(0) { $0 + $1.size }))").font(.title3.weight(.semibold))
-                Text(free.map { "\(Format.bytes($0)) free now" } ?? "").foregroundStyle(.secondary)
+                Text(library.disk.map { "\(Format.bytes($0.free)) free now" } ?? "").foregroundStyle(.secondary)
                 Spacer()
                 if let seen = library.largeFilesProgress {
                     ProgressView().controlSize(.small)
@@ -267,20 +266,13 @@ struct CleanupView: View {
         Task {
             results[item.id] = await library.clean(item)
             working.remove(item.id)
-            free = Self.freeSpace()
         }
     }
 
     private func measure() async {
         results = [:]
         await library.scanCleanup()
-        free = Self.freeSpace()
-    }
-
-    /// Space no file holds, without what macOS could free on its own
-    private static func freeSpace() -> Int64? {
-        let values = try? FileManager.default.homeDirectoryForCurrentUser.resourceValues(forKeys: [.volumeAvailableCapacityKey])
-        return values?.volumeAvailableCapacity.map(Int64.init)
+        library.readDisk()
     }
 }
 

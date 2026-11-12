@@ -137,6 +137,13 @@ final class Library {
 
     // MARK: This Mac
 
+    /// This Mac's disk, read with the iCloud storage (every minute and on coming back) and after each clean
+    private(set) var disk = MacDisk.read()
+
+    func readDisk() {
+        disk = MacDisk.read()
+    }
+
     /// What can go to free disk space on this Mac (see Cleanup): nil until measured
     private(set) var cleanupItems: [CleanupItem]?
     /// Big files from the last search, the launch before included: nil until one ran
@@ -248,6 +255,7 @@ final class Library {
         }
         cleanupItems = cleanupItems?.map(update)
         largeFiles = largeFiles?.map(update)
+        readDisk()
         let freed = max(0, item.size - after)
         // Moving to the Trash frees nothing yet: it counts once the Trash is emptied
         if freed > 0 {
@@ -314,6 +322,7 @@ final class Library {
 
     /// iCloud storage changes outside the library too (a deleted backup), so it is read again on its own
     func refreshStorage() async {
+        readDisk()
         storage = await Task.detached { ICloudStorage.read() }.value
         if let free = storage?.free {
             let readings = StorageHistory.adding(free, to: storageReadings)

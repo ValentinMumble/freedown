@@ -33,7 +33,8 @@ extension Shrinker {
         }
         let saving = 1 - Double(after) / Double(before)
         if after >= before {
-            return record(kept: "the copy is \(Int((Double(after) / Double(before) - 1) * 100))% bigger")
+            let bigger = (Double(after) / Double(before) - 1) * 100
+            return record(kept: bigger < 1 ? "the copy is no smaller" : "the copy is \(Int(bigger.rounded()))% bigger")
         }
         // Beyond the frame rule the quality check cannot pair the frames, so the copy waits for a look instead
         if !framesMatch(copy.frames, original.frames) {

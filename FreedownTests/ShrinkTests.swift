@@ -51,4 +51,13 @@ struct ShrinkTests {
         #expect(Shrinker.framesMatch(3019, 3020))
         #expect(!Shrinker.framesMatch(3000, 3020))
     }
+
+    /// A copy barely bigger or smaller says so, rather than a misleading 0%
+    @Test func describesTheSizeChange() {
+        #expect(ShrinkRecord.change(100, 60) == "−40%")
+        #expect(ShrinkRecord.change(72, 91) == "+26%")
+        #expect(ShrinkRecord.change(810, 815) == "+<1%")
+        #expect(ShrinkRecord.change(815, 810) == "−<1%")
+        #expect(ShrinkRecord.change(100, 100) == "0%")
+    }
 }

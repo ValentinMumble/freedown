@@ -18,13 +18,16 @@ struct ShrinkView: View {
         // Originals whose copy is in Photos and which are still there
         let originals = shrunk.compactMap { library.itemsById[$0.original] }
         let saved = shrunk.reduce(0) { $0 + $1.before - $1.after }
-        // Refused copies kept aside, best score first: the ones most likely to be fine
+        // Refused copies kept aside, best score first: the ones most likely to be fine. Each is a look at the disk,
+        // so it is done once here rather than again in each row.
         let waiting = records.filter { ShrinkRecords.preview($0) != nil && library.itemsById[$0.original] != nil }
             .sorted { ($0.vmaf ?? 0) > ($1.vmaf ?? 0) }
         let waitingIds = Set(waiting.map(\.id))
+        let running = Set(shrinker.jobs.filter(\.phase.active).map(\.item.id))
         let rest = records.filter { !waitingIds.contains($0.id) }
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            // Lazy: hundreds of results, each with a thumbnail, are only built as they scroll into view
+            LazyVStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(headline(shrunk: shrunk.count, saved: saved, notShrunk: records.count - shrunk.count))
                         .foregroundStyle(.secondary)
@@ -47,11 +50,11 @@ struct ShrinkView: View {
                     ForEach(shrinker.jobs) { job in jobRow(job) }
                 }
 
-                if !waiting.isEmpty { refusedSection(waiting) }
+                if !waiting.isEmpty { refusedSection(waiting, running: running) }
 
                 if !rest.isEmpty {
                     Text("Results").font(.title3.weight(.semibold)).padding(.top, 6)
-                    ForEach(rest) { record in recordRow(record) }
+                    ForEach(rest) { record in recordRow(record, waiting: false, running: running.contains(record.original)) }
                 }
             }
             .padding(16)
@@ -63,7 +66,7 @@ struct ShrinkView: View {
         }
     }
 
-    private func refusedSection(_ waiting: [ShrinkRecord]) -> some View {
+    private func refusedSection(_ waiting: [ShrinkRecord], running: Set<String>) -> some View {
         let chosen = waiting.filter { accepted.contains($0.original) }
         let allChosen = chosen.count == waiting.count
         return VStack(alignment: .leading, spacing: 10) {
@@ -85,7 +88,7 @@ struct ShrinkView: View {
             if !saveFailures.isEmpty {
                 Text("Not saved: \(saveFailures.joined(separator: ", ")).").foregroundStyle(.red)
             }
-            ForEach(waiting) { record in recordRow(record) }
+            ForEach(waiting) { record in recordRow(record, waiting: true, running: running.contains(record.original)) }
         }
     }
 
@@ -159,12 +162,11 @@ struct ShrinkView: View {
         .modifier(Selectable(item: library.itemsById[job.item.id], selection: $selection, actions: actions))
     }
 
-    private func recordRow(_ record: ShrinkRecord) -> some View {
+    /// `waiting` when its refused copy waits to be compared, `running` while the video is encoded again
+    private func recordRow(_ record: ShrinkRecord, waiting: Bool, running: Bool) -> some View {
         let original = library.itemsById[record.original]
         let copy = record.copy.flatMap { library.itemsById[$0] }
         let state = original == nil ? "Original deleted, space freed" : "Copy in Photos, original still here"
-        let running = shrinker.jobs.contains { $0.phase.active && $0.item.id == record.original }
-        let waiting = ShrinkRecords.preview(record) != nil && original != nil
         return HStack(spacing: 12) {
             if waiting {
                 Toggle(

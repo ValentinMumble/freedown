@@ -13,6 +13,7 @@ struct Sidebar: View {
             }
             ForEach(Destination.sections, id: \.self) { section in
                 Section(section) {
+                    if section == "This Mac", let disk = library.disk { MacDiskView(disk: disk) }
                     ForEach(Destination.allCases.filter { $0.section == section }) { entry in
                         // A badge keeps the row's width fixed while the counts change
                         Label(entry.label, systemImage: entry.symbol)
@@ -61,6 +62,34 @@ struct Sidebar: View {
             return "\(tally.count.formatted()) · −\(Format.bytes(tally.saving))"
         }
         return "\(tally.count.formatted()) · \(Format.bytes(tally.size))"
+    }
+}
+
+/// This Mac's disk, like the iCloud bar above it: what is used, and what is free.
+struct MacDiskView: View {
+    let disk: MacDisk
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(Format.bytes(disk.used)) of \(Format.bytes(disk.total)) used").font(.callout)
+            // Drawn rather than laid out: measuring inside a sidebar row can loop the window's layout
+            Canvas { context, size in
+                let width = size.width * Double(disk.used) / Double(max(disk.total, 1))
+                context.fill(Path(CGRect(x: 0, y: 0, width: width, height: size.height)), with: .color(.accentColor))
+            }
+            .frame(height: 8)
+            .background(.quaternary)
+            .clipShape(Capsule())
+            HStack(spacing: 6) {
+                Circle().strokeBorder(.secondary).frame(width: 8, height: 8)
+                Text("Free")
+                Spacer()
+                Text(Format.bytes(disk.free)).fontWeight(.semibold)
+            }
+        }
+        .font(.caption)
+        .padding(.vertical, 4)
+        .help("Read every minute and after each clean. Free space here leaves out what macOS could free on its own, like local Time Machine snapshots and caches it manages.")
     }
 }
 

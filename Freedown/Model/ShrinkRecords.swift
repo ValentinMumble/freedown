@@ -53,9 +53,15 @@ struct ShrinkRecord: Codable, Identifiable {
 
     /// "27 MB → 16 MB (−40%)"
     var sizes: String {
-        let percent = Int(((Double(after) / Double(before)) - 1) * 100)
-        let change = percent > 0 ? "+\(percent)%" : "−\(-percent)%"
-        return "\(Format.bytes(before)) → \(Format.bytes(after)) (\(change))"
+        "\(Format.bytes(before)) → \(Format.bytes(after)) (\(Self.change(before, after)))"
+    }
+
+    /// "+25%", "−40%", and "+<1%" rather than a misleading 0% when the copy is barely bigger or smaller
+    static func change(_ before: Int64, _ after: Int64) -> String {
+        let percent = (Double(after) / Double(max(before, 1)) - 1) * 100
+        if abs(percent) < 1 { return percent > 0 ? "+<1%" : percent < 0 ? "−<1%" : "0%" }
+        let rounded = Int(abs(percent).rounded())
+        return percent > 0 ? "+\(rounded)%" : "−\(rounded)%"
     }
 
     /// "27 MB → 16 MB (−40%), quality 95.3"

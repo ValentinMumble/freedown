@@ -37,7 +37,7 @@ Freedown counts every file iCloud stores for an item, so the sizes it shows add 
 | JPEG Photos | **Convert to HEIC**: lightly compressed JPEGs are saved again as HEIC, and the copy replaces the JPEG only when it is smaller and looks the same |
 | Screenshots | rarely worth keeping for long |
 | iCloud Drive | files in iCloud Drive and in apps' iCloud folders from 1 MB (set in Settings), biggest first, to move to the Trash or show in Finder |
-| Clean Up | the page it opens on (Settings can change that): disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days; right-click an app to keep it for good |
+| Clean Up | the page it opens on (Settings can change that), under a bar of the Mac's used and free space: disk space on this Mac: the Trash, Docker leftovers, caches that tools and apps fill again, app update downloads, browser caches and apps not opened for 60 days; right-click an app to keep it for good |
 | Large Files | files and apps in the home folder from 500 MB, biggest first, to move to the Trash or show in Finder; right-click one to skip it or its folder from then on |
 | Half-Frame Scans | lab scans of half-frame film, two shots per picture: check the cut, turn each half, and split them into two photos |
 | Shrinking | re-encodes the videos you pick in Videos to a smaller file, keeping a copy only when it looks the same |
